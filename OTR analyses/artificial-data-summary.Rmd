@@ -3,13 +3,16 @@ title: "Artificial Data Analysis"
 author: "Florian Stijven"
 date: "`r Sys.Date()`"
 output:
-  word_document:
-    toc: true
-    number_sections: true
+  html_document:
+    toc: yes
+    df_print: paged
   bookdown::html_document2:
-    toc: true
-    toc_float: true
-    number_sections: true
+    toc: yes
+    toc_float: yes
+    number_sections: yes
+  word_document:
+    toc: yes
+    number_sections: yes
 ---
 
 
