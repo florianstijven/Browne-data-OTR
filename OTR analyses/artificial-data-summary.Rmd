@@ -24,7 +24,6 @@ library(tidyverse)
 library(sas7bdat)
 # Specify file locations.
 OTR_vs_file_1 = "OTR analyses/OTR-estimation/VSC/results/OTR_artificial_results_cesd.rds"
-OTR_vs_file_2 = "OTR analyses/OTR-estimation/VSC/results/OTR_artificial_results_update_2_cesd.rds"
 OTR_q_file = "OTR analyses/OTR-estimation/OTR_q_results_update.rds"
 ```
 
@@ -106,9 +105,7 @@ OTR_value_search_tbl =
     # Regimes estimated for update 1 data.
     readRDS(OTR_vs_file_1) %>%
       filter(update == 1L) %>%
-      mutate(outcome_model = "Correct") #,
-    # Regimes estimated for update 2 data.
-    # readRDS(OTR_vs_file_2)
+      mutate(outcome_model = "Correct")
     ) %>%
       rename(regime = OTR_estimated) %>%
       mutate(estimated_value = sapply(X = regime,
@@ -344,13 +341,11 @@ pooled_inference_aggregated_rules_tbl = estimated_value_tbl %>%
   mutate(pooled_total_variance = pooled_within_variance + (1 + (1 / 40)) * pooled_between_variance)
 ```
 
-In this document, we examine the influence of two different data analytic choices
+In this document, we examine the influence of different data analytic choices
 on the estimation of optimal treatment regimes in the *modified Browne data*:
 
 * The influence of the imputation model, i.e., global imputation versus imputation 
 per arm.
-* The influence of a misspecified outcome regression model on Q-learning versus
-value search estimation.
 
 The *modified Browne data* are the Browne data where we artificially induce
 relationships between baseline covariates and the outcome variable. In what
@@ -368,11 +363,6 @@ $$\tilde{\texttt{cesd2}} = \texttt{cesd2} - (0.30 \cdot (\texttt{cesd} - 40) - 6
 This update changes the interaction effects. Patients will thus benefit
 more from the addition of IPT to Sertraline if they have a more severe
 depression at baseline (larger baseline CESD and past MDD).
-* **Update 2.** The outcome value is modified as follows where $\texttt{cesd2}$ is 
-now the outcome value after update 1,
-$$\tilde{\texttt{cesd2}} = \texttt{cesd2} + 0.01 \cdot (\texttt{age} - 25)^2. $$
-This update thus changes the main effects only. After this update, a linear
-regression model without quadratic age effect will thus be misspecified.
 
 In the following analyses, we will only consider 40 imputations instead of the
 200 imputations used for analyzing the original Browne data. This limits the 
@@ -510,6 +500,25 @@ pooled_inference_aggregated_rules_tbl %>%
   scale_fill_discrete(name = "OTR method") +
   ggtitle("Estimated Value with 95% CI")
 ```
+For completeness, we also summarize the information in the above figure in the 
+following table.
+
+```{r}
+pooled_inference_aggregated_rules_tbl %>%
+  filter(update == 1L,
+         aggregation %in% c("Circular Mean", "One-Size-Fits-All")) %>%
+  mutate(
+    lower_ci = pooled_estimated_value - 1.96 * sqrt(pooled_total_variance),
+    upper_ci = pooled_estimated_value + 1.96 * sqrt(pooled_total_variance)
+  ) %>%
+  select(imputation,
+         OTR_method,
+         pooled_estimated_value,
+         lower_ci,
+         upper_ci) %>%
+  knitr::kable(digits = 3)
+```
+
 
 In the next table, the aggregated regime parameters are summarized. The
 estimated parameters for CESD and past MDD tend to be closer to zero under
@@ -542,59 +551,6 @@ interpretation_tbl = aggregated_rules_tbl %>%
 interpretation_tbl %>%
   knitr::kable(digits = 3,
                caption = "Linear regime parameter estimates for the aggregated regimes (without additional modificiations) for the update 1 data. The respective parameter vectors have unit norm.")
-```
-
-
-# Misspecification of Main Effects
-
-In this section, we will look at the influence of misspecification of the
-outcome regression model on Q-learning versus value search estimation.
-Q-learning relies on a correctly specified outcome regression model while the
-value search estimator does not. However, this does not mean that Q-learning
-will perform much worse under all types of misspecifications. We have
-artificially added a quadratic effect of age on CESD at 6 months to the data.
-
-In this section, we only consider imputation per arm. Note that a quadratic age
-effect has also been added to the imputation model. This is consistent with proper
-imputation: the imputation model and analysis model should not contradict each
-other. Since we use a quadratic age effect in the analyses with correctly
-specified outcome regression model, we should also include it in the imputation
-model.
-
-We conduct four analyses: Q-learning and value search estimation, each with
-and without a correctly specified outcome regression model.
-
-In the next figure, the pooled estimated value of the aggregated regimes are
-summarized together with 95% CI's. The values of the aggregated regimes are
-estimated with the AIPW estimator that uses the same outcome regression model
-as the estimator for the optimal regimes. 
-
-It is clear that failing to include a quadratic effect of age in the outcome
-regression model for Q-learning does not have an important effect on the
-estimated regime's value. The same is true for value search estimation.
-
-
-We next look at the same comparisons, but *before* aggregation, i.e., the
-estimated values of the estimated regimes in each imputed data set. The
-advantage of comparing both methods *before aggregation* is that the aggregation
-method cannot influence the comparison.
-
-```{r, fig.cap="Frequency distribution of the estimated values of the estimated regimes across the imputations for the update 2 data. Note that each histogram represents 40 estimated values of 40, possibly different, estimated regimes."}
-OTR_results %>%
-  filter(update == 3L) %>%
-  ggplot(aes(x = estimated_value)) +
-  geom_histogram(color = "black", fill = "gray") +
-  # geom_vline(
-  #   data = pooled_inference_aggregated_rules_tbl %>%
-  #     filter(aggregation == "One-Size-Fits-All", update == 2L) %>%
-  #     rename("Value of Trivial Regimes" = OTR_method) %>%
-  #     select(-outcome_model),
-  #   mapping = aes(xintercept = pooled_estimated_value, color = `Value of Trivial Regimes`)
-  # ) +
-  xlab("Estimated Value") +
-  ylab("Frequency") +
-  scale_color_discrete(name = "Value of Trivial Regimes") +
-  facet_grid(outcome_model ~ quadratic)
 ```
 
 
