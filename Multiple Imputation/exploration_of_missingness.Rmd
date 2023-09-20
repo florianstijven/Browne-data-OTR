@@ -1,0 +1,269 @@
+---
+title: "Exploration of Misssingness"
+author: "Florian Stijven"
+date: "`r Sys.Date()`"
+output:
+  html_document: default
+  word_document: default
+---
+
+```{r, echo=FALSE, message=FALSE, warning=FALSE}
+knitr::opts_chunk$set(echo = FALSE,
+                      message = FALSE,
+                      warning = FALSE,
+                      fig.width = 10)
+library(tidyverse)
+library(sas7bdat)
+```
+
+
+```{r}
+# Read the Browne data.
+original_data = read.sas7bdat(file = "data preparation and exploration/final.sas7bdat")
+
+# Recode NaN values to the approriate NA values. For some reason, missing values
+# in a sas data set are not recognized as NA's in R.
+original_data = original_data %>%
+  mutate(across(.cols = everything(), .fns = function(x) ifelse(is.nan(x), NA, x)))
+
+# Recode the group, sex, and disorder variables into a factor variables.
+original_data = original_data %>%
+  mutate(group = factor(
+    group,
+    labels = c("Sertraline alone", "Sertraline and IPT", "IPT"),
+    levels = 1:3
+  ),
+  sex = factor(
+    sex,
+    labels = c("Male", "Female"),
+    levels = 1:2
+  ),
+  disorder = factor(
+    disorder,
+    labels = c("Never", "Past", "Current", "Current and Past"),
+    levels = 1:4
+  ))
+
+# Change variable names to improve consistency.
+original_data = original_data %>%
+  rename(madrs = madrsv1, madrs2 = madrst2,
+         sas = sasb, sas2 = sasb2)
+
+# Remove outcomes measured after six months. 
+original_data = original_data %>%
+  select(-cesd3, -cesd4, -famfun3, -famfun4,
+         -madrst3, -madrst4, -vas3, -vas4,
+         -sasb3, -sasb4)
+
+
+```
+
+
+In this document, we explore the missingness in the Browne data following the
+multiple imputation approach we have used. First, we summarize the different
+missingness patterns that appear in these data. Second, we examine how well the
+missing variables can be predicted from the observed variables in the two imputation
+models that we have used: (i) global imputation, and (ii) imputation per arm.
+
+# Missingness Patterns
+
+In the next figure, the missing data patterns are summarized for the patients in
+the "Sertraline alone" and "Sertraline and IPT" groups. The first column
+provides the frequency of each pattern. The last column lists the number of
+missing entries per pattern. The bottom row provides the number of missing
+entries per variable, and the total number of missing cells.
+
+```{r}
+temp = mice::md.pattern(original_data %>%
+                   filter(group != "IPT") %>%
+                   select(-group, -id))
+```
+
+The above figure shows that almost all missingness is due to missingness in the
+outcome variables measured 6 months after randomization. In addition, most
+missingness is due to drop out before the 6 months measurement occasion.
+Therefore, a missing outcome at 6 months is generally imputed using only the
+baseline covariates, *but not the other outcomes at 6 months*. The accuracy of
+the imputations will thus depend mostly on how well the baseline covariates can
+predict the outcomes at 6 months.
+
+The same graph is repeated for the treatment groups separately.
+
+```{r}
+temp = mice::md.pattern(original_data %>%
+                   filter(group == "Sertraline alone") %>%
+                   select(-group, -id))
+```
+
+```{r}
+temp = mice::md.pattern(original_data %>%
+                   filter(group == "Sertraline and IPT") %>%
+                   select(-group, -id))
+```
+
+
+# Accuracy of Imputations
+
+In this section, we will examine how accurately missing observations can be
+imputed in the two imputation models we have considered: (i) global imputation
+and (ii) imputation per arm. We will examine two aspects of this accuracy:
+
+1. How well can the missing values be predicted from the observed values? This is
+quantified in the adjusted R-squared values for the prediction models for each
+of the 5 outcomes measured at 6 months.
+2. How much uncertainty is there in individual predictions? This is quantified
+by the standard error for the predicted mean outcome for patients with missing
+outcomes at 6 months. We additionally consider the width of the associated
+prediction intervals.
+
+To achieve the above goals, we fit two linear regression models corresponding to
+the two imputation models. 
+
+* The first linear regression model uses all baseline
+covariates in the linear predictor *without* interaction terms. This
+corresponds to global imputation.
+* The second linear regression model uses all
+baseline covariates
+*and* interaction terms with treatment in the linear predictor. This corresponds
+to imputation per arm.
+
+```{r}
+# Specify formula for the linear regression models on which the global
+# imputation model is based.
+global_formula = formula(value ~ group + sex + age + disorder + numchild + phealth + madrs + sas + famfun + cesd + vas)
+# Fit linear regression model for each of the 5 outcomes at 6 months, using
+# all baseline covariates.
+lm_global_tbl = original_data %>%
+  pivot_longer(
+    cols = c("cesd2", "madrs2", "vas2", "sas2", "famfun2"),
+    values_to = "value",
+    names_to = "outcome"
+  ) %>%
+  group_by(outcome) %>%
+  summarise(lm_fit =
+              list(lm(
+                formula = global_formula,
+                data = pick(everything())
+              ))) %>%
+  mutate(imputation = "global") %>%
+  ungroup()
+
+# Specify formula for the linear regression models on which the imputation per
+# arm model is based. Although not fully equivalent, we use a model with all
+# interaction terms with treatment for this purpose.
+per_arm_formula = update(global_formula, ~.*group)
+# Fit linear regression model for each of the 5 outcomes at 6 months, using
+# all baseline covariates. 
+lm_per_arm_tbl = original_data %>%
+  pivot_longer(
+    cols = c("cesd2", "madrs2", "vas2", "sas2", "famfun2"),
+    values_to = "value",
+    names_to = "outcome"
+  ) %>%
+  group_by(outcome) %>%
+  summarise(lm_fit =
+              list(lm(
+                formula = per_arm_formula,
+                data = pick(everything())
+              ))) %>%
+  mutate(imputation = "per arm") %>%
+  ungroup()
+```
+
+```{r}
+# Combine the different estimated models into one tibble.
+lm_tbl = bind_rows(
+  lm_global_tbl,
+  lm_per_arm_tbl
+)
+# We now compute the adjusted R-squared value for all fitted models.
+lm_tbl = lm_tbl %>%
+  mutate(R_squared = sapply(
+    X = lm_fit,
+    FUN = function(fit) summary(fit)$r.squared
+  ),
+  R_squared_adj = sapply(
+    X = lm_fit,
+    FUN = function(fit) summary(fit)$adj.r.squared
+  ))
+```
+
+In the next table, we summarize the adjusted R-squared values for the linear
+regression models. We make two important observations:
+
+1. The adjusted R-squared values are relatively low. This means that the missing
+values cannot be very accurately predicted from the observed values. The
+accuracy is especially low for VAS. For FAMFUN and SAS, the accuracy is actually
+moderate.
+2. There is almost no difference in adjusted R-squared values between the two 
+linear regression models. Missing values can thus *not* be more accurately 
+imputed in the imputation per arm model as compared to global imputation.
+
+```{r}
+lm_tbl %>%
+  pivot_wider(names_from = "imputation",
+              values_from = "R_squared_adj",
+              id_cols = outcome) %>%
+  knitr::kable(digits = 3, 
+               caption = "Adjusted R-squared values for linear regression models corresponding to global imputation and imputation per arm.")
+```
+
+We can thus conclude that there is no real gain in accuracy when doing
+imputation per arm. But is there an increase in uncertainty when doing
+imputation per arm? In what follows, we consider the standard errors for the
+predicted means for patients with missing outcome values at 6 months (and
+completely observed baseline covariates). 
+
+We only give the results for patients in the first two treatment groups because
+these patients were used for estimating the optimal treatment regimes.
+
+The next plot shows these estimated standard errors for both linear regression
+models. Note that this only captures uncertainty in the model parameters.
+
+```{r}
+# We compute the standard errors for the predicted means for the missing
+# observations. Note that we only consider the first two treatment groups here. 
+imputation_predictors = original_data %>%
+  filter(group != "IPT") %>%
+  filter(is.na(famfun2)) %>%
+  filter(!is.na(famfun), !is.na(vas))
+
+# for the 
+lm_tbl %>%
+  rowwise(outcome, imputation) %>%
+  reframe(
+    predict(lm_fit, se.fit = TRUE, newdata = imputation_predictors) %>%
+      as_tibble() %>%
+      mutate(id = 1:nrow(imputation_predictors))
+  ) %>%
+  ggplot(aes(x = id, y = se.fit, color = imputation)) +
+  geom_point() +
+  ylab("SE for the Estimated Mean")  +
+  facet_wrap(~outcome, scale = "free")
+```
+
+To capture the full prediction uncertainty, we consider the widths of the
+prediction intervals for the same predictions as above. This figure shows that a
+small degree of uncertainty is added to the predictions if we do imputation per
+arm.
+
+```{r}
+lm_tbl %>%
+  rowwise(outcome, imputation) %>%
+  reframe(
+    predict(lm_fit, newdata = imputation_predictors, interval = "prediction") %>%
+      as_tibble() %>%
+      mutate(id = 1:nrow(imputation_predictors))
+  ) %>%
+  mutate(width = upr - lwr) %>%
+  ggplot(aes(x = id, y = width, color = imputation)) +
+  geom_point() +
+  ylab("Width of Prediction Interval") +
+  facet_wrap(~outcome, scales = "free")
+```
+
+
+
+
+
+

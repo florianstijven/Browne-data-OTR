@@ -1,0 +1,353 @@
+---
+title: "Modified Browne Data - Motivation for Modifications"
+author: "Florian Stijven"
+date: "`r Sys.Date()`"
+output:
+  bookdown::html_document2:
+    toc: true
+    toc_float: true
+    number_sections: true
+  word_document:
+    toc: true
+    number_sections: true
+---
+
+```{r, echo=FALSE, message=FALSE, warning=FALSE}
+knitr::opts_chunk$set(echo = FALSE,
+                      message = FALSE,
+                      warning = FALSE,
+                      fig.width = 10)
+library(tidyverse)
+library(sas7bdat)
+```
+
+
+```{r}
+# Read the Browne data.
+original_data = read.sas7bdat(file = "data preparation and exploration/final.sas7bdat")
+
+# Recode NaN values to the approriate NA values. For some reason, missing values
+# in a sas data set are not recognized as NA's in R.
+original_data = original_data %>%
+  mutate(across(.cols = everything(), .fns = function(x) ifelse(is.nan(x), NA, x)))
+
+# Recode the group, sex, and disorder variables into a factor variables.
+original_data = original_data %>%
+  mutate(group = factor(
+    group,
+    labels = c("Sertraline alone", "Sertraline and IPT", "IPT"),
+    levels = 1:3
+  ),
+  sex = factor(
+    sex,
+    labels = c("Male", "Female"),
+    levels = 1:2
+  ),
+  disorder = factor(
+    disorder,
+    labels = c("Never", "Past", "Current", "Current and Past"),
+    levels = 1:4
+  ))
+
+# Recode disorder variable into two binary variables.
+original_data = original_data %>%
+  mutate(
+    past_MDD = fct_collapse(
+      .f = disorder,
+      "No" = c("Never", "Current"),
+      "Yes" = c("Past", "Current and Past")
+    ),
+    current_MDD = fct_collapse(
+      .f = disorder,
+      "No" = c("Never", "Past"),
+      "Yes" = c("Current", "Current and Past")
+    )
+  )
+
+# Change variable names to improve consistency.
+original_data = original_data %>%
+  rename(madrs = madrsv1, madrs2 = madrst2,
+         sas = sasb, sas2 = sasb2)
+
+# Remove outcomes measured after six months. 
+original_data = original_data %>%
+  select(-cesd3, -cesd4, -famfun3, -famfun4,
+         -madrst3, -madrst4, -vas3, -vas4,
+         -sasb3, -sasb4)
+
+# Add change score for CESD as outcome and remove the "IPT" treatment group . 
+original_data = original_data %>%
+  mutate(change_cesd = cesd - cesd2) %>%
+  filter(group != "IPT")
+
+```
+
+In this document, we justify the choices to add additional effects of covariates
+on the outcomes in the original Browne data. We only consider CESD at 6 months as
+outcome. These additional effects are artificially added to illustrate some
+ideas that cannot be illustrated with the original data because these
+(interaction) effects are not present there. We consider three artificial data
+sets.
+
+1. We add a treatment-interaction effect for past major depressive disorder
+(MDD) (`past_MDD`) and baseline CESD (`cesd`) for their effect on CESD at 6
+months (`cesd2`). So, these two baseline covariates are artificially turned into
+treatment effect modifiers.
+2. In addition to the changes in the first point, we add a quadratic effect for
+the main effect of age. So, the outcome regression model that we have used
+before will be misspecified.
+3. In addition to the changes in the first point, we add a three-way interaction
+for treatment-past MDD-age. The outcome regression model does not include
+three-way interactions and will thus again be missspecified. In addition, this
+three-way interaction is not captured by the class of linear treatment regimes
+that we are considering.
+
+We first give some results and plots for the original data where we do an
+available case analysis to deal with the missing data. This provides a reference
+to compare the "updated" data sets with. The goal is to change the original data
+in such a way that the modified data are still plausible. 
+
+```{r}
+# Define formula for two regression models that will be used further on.
+global_formula = formula(change_cesd ~ group + sex + age + past_MDD + numchild + phealth + madrs + sas + famfun + cesd + vas)
+per_arm_formula = update(global_formula, ~.*group)
+
+```
+
+
+# Original data
+
+
+The outcome regression model for change in CESD is fitted with and without all
+interaction terms with treatment. These estimated models are summarized next.
+The values between brackets are the estimated standard errors.
+
+```{r}
+lm_fit0_global = lm(global_formula, original_data)
+lm_fit0_per_arm = lm(per_arm_formula, original_data)
+modelsummary::msummary(
+  list("No Interactions" = lm_fit0_global,
+       "Treatment-Interactions" = lm_fit0_per_arm),
+  estimate = "{estimate} ({std.error}){stars}",
+  statistic = NULL,
+  notes = "+, p < 0.1; *, p < 0.05; **, p < 0.01; ***, p < 0.001.",
+  gof_map = c("r.squared", "adj.r.squared")
+)
+```
+
+We next plot the change score against baseline CESD, stratified by treatment and
+past MDD. Smooth fits are added to facilitate the interpretation. The gray
+shaded regions are 95% confidence intervals around the smooth curves. 
+
+```{r}
+original_data %>%
+  ggplot(aes(x = cesd, y = change_cesd, color = group, linetype = past_MDD)) +
+  geom_point(alpha = 0.4) + 
+  geom_smooth(se = TRUE) +
+  ylab("Change in CESD (baseline - 6 months)") +
+  xlab("Baseline CESD")
+```
+
+We next plot the change score against age. As before, a smooth curve is added
+together with a 95% confidence interval.
+
+```{r}
+original_data %>%
+  ggplot(aes(x = age, y = change_cesd)) +
+  geom_point() + 
+  geom_smooth() +
+  ylab("Change in CESD (baseline - 6 months)") +
+  xlab("Age")
+```
+
+
+# Update 1
+
+The first update involves the introduction of additional treatment effect
+heterogeneity. The modification of the outcome variable is as follows,
+$$\tilde{\texttt{cesd2}} = \texttt{cesd2} - (0.30 \cdot (\texttt{cesd} - 40) - 6 \cdot \texttt{past_MDD}) \cdot I(\texttt{group} = 1) + 0.20 \cdot (\texttt{cesd} - 40) + 4 \cdot \texttt{past_MDD}$$
+where a tilde indicates the updated value and group $1$ corresponds to
+"Sertraline and IPT". Patients will thus benefit more "Sertraline and IPT" (as
+compared to "Sertraline alone") if they have a more severe depression at
+baseline (larger CESD and past MDD).
+
+
+```{r}
+data_update1 = original_data %>%
+  filter(group != "IPT") %>%
+  mutate(
+    cesd2 = ifelse(
+      group == "Sertraline and IPT",
+      cesd2 - 0.30 * (cesd - 40) - 6 * (past_MDD == "Yes")              ,
+      cesd2
+    ),
+    cesd2 = cesd2 + 0.20 * (cesd - 40) + 4 * (past_MDD == "Yes"),
+    change_cesd = cesd - cesd2
+  )
+```
+
+
+We next repeat the same regression models and plots as before. There now is 
+a signficant interaction effect for past MDD and baseline CESD. Note also that
+there is a slight change in R-squared.
+
+```{r}
+lm_fit1_global = lm(global_formula, data_update1)
+lm_fit1_per_arm = lm(per_arm_formula, data_update1)
+modelsummary::msummary(
+  list("No Interactions" = lm_fit1_global,
+       "Treatment-Interactions" = lm_fit1_per_arm),
+  estimate = "{estimate} ({std.error}){stars}",
+  statistic = NULL,
+  notes = "+, p < 0.1; *, p < 0.05; **, p < 0.01; ***, p < 0.001.",
+  gof_map = c("r.squared", "adj.r.squared")
+)
+```
+
+The following plot is the same as for the original data, but the plot now 
+suggests some degree of treatment effect heterogeneity. 
+
+```{r}
+data_update1 %>%
+  ggplot(aes(x = cesd, y = change_cesd, color = group, linetype = past_MDD)) +
+  geom_point(alpha = 0.4) + 
+  geom_smooth(se = TRUE) +
+  ylab("Change in CESD (baseline - 6 months)") +
+  xlab("Baseline CESD")
+```
+
+The next plot is very similar to the corresponding plot for the original data. 
+This is expected as we did not change the effect of age.
+
+```{r}
+data_update1 %>%
+  ggplot(aes(x = age, y = change_cesd)) +
+  geom_point() + 
+  geom_smooth() +
+  ylab("Change in CESD (baseline - 6 months)") +
+  xlab("Age")
+```
+
+
+
+# Update 2
+
+The second update involves the introduction of a quadratic main effect of age
+that leads to our outcome model being misspecified. The modification of the
+outcome variable is as follows,
+$$\tilde{\texttt{cesd2}} = \texttt{cesd2} + 0.01 \cdot (\texttt{age} - 25)^2. $$
+where a tilde indicates the updated value and $\texttt{cesd2}$ is the value from
+the **first** update.
+
+
+This is a quadratic main effect of age. Patients will thus do worse on average
+if they are further away from 25 years old. Since most patients are older than
+25, this basically means that younger patients will do better.
+
+```{r}
+data_update2 = data_update1 %>%
+  mutate(
+    cesd2 = cesd2 + 0.01 * (age - 25) ** 2,
+    change_cesd = cesd - cesd2
+  )
+```
+
+
+We next repeat the same regression models and plots as before. Beside treatment
+effect heterogeneity, there is now evidence for a quadratic main effect of age 
+(as shown in the last plot). 
+
+```{r}
+lm_fit2_global = lm(global_formula, data_update2)
+lm_fit2_per_arm = lm(per_arm_formula, data_update2)
+modelsummary::msummary(
+  list("No Interactions" = lm_fit2_global,
+       "Treatment-Interactions" = lm_fit2_per_arm),
+  estimate = "{estimate} ({std.error}){stars}",
+  statistic = NULL,
+  notes = "+, p < 0.1; *, p < 0.05; **, p < 0.01; ***, p < 0.001.",
+  gof_map = c("r.squared", "adj.r.squared")
+)
+```
+
+
+```{r}
+data_update2 %>%
+  ggplot(aes(x = cesd, y = change_cesd, color = group, linetype = past_MDD)) +
+  geom_point(alpha = 0.4) + 
+  geom_smooth(se = TRUE) +
+  ylab("Change in CESD (baseline - 6 months)") +
+  xlab("Baseline CESD")
+```
+
+```{r}
+data_update2 %>%
+  ggplot(aes(x = age, y = change_cesd)) +
+  geom_point() + 
+  geom_smooth() +
+  ylab("Change in CESD (baseline - 6 months)") +
+  xlab("Age")
+```
+
+# Update 3
+
+The third update involves the introduction of additional treatment effect
+heterogeneity that leads the our outcome regression model being misspecified.
+The modification of the outcome variable is as follows,
+$$\tilde{\texttt{cesd2}} = \texttt{cesd2} - 0.2 \cdot (\texttt{age} - 50) \cdot \texttt{past_MDD} \cdot I(\texttt{group} = 1) $$
+where a tilde indicates the updated value and $\texttt{cesd2}$ is the value from
+the **first** update. This corresponds to a three-way interaction. Because of
+this, the outcome regression model will be misspecified. In contrast to update
+2, the misspecification is now in the interaction terms instead of the main
+effects (as was the case for update 2). This also means that the class of linear
+regimes that we are considering does not contain the optimal regime.
+
+```{r}
+data_update3 = data_update1 %>%
+  mutate(
+    cesd2 = ifelse(
+      group == "Sertraline and IPT",
+      cesd2 - 0.2 * (age - 50) * (past_MDD == "Yes"),
+      cesd2
+    ),
+    change_cesd = cesd - cesd2
+  )
+```
+
+
+We next repeat the same regression models and plots as before. The other plots
+ar similar to those from update 1, although there now is an additional three-way
+interaction.
+
+```{r}
+lm_fit3_global = lm(global_formula, data_update3)
+lm_fit3_per_arm = lm(per_arm_formula, data_update3)
+modelsummary::msummary(
+  list("No Interactions" = lm_fit3_global,
+       "Treatment-Interactions" = lm_fit3_per_arm),
+  estimate = "{estimate} ({std.error}){stars}",
+  statistic = NULL,
+  notes = "+, p < 0.1; *, p < 0.05; **, p < 0.01; ***, p < 0.001.",
+  gof_map = c("r.squared", "adj.r.squared")
+)
+```
+
+
+```{r}
+data_update3 %>%
+  ggplot(aes(x = cesd, y = change_cesd, color = group, linetype = past_MDD)) +
+  geom_point(alpha = 0.4) + 
+  geom_smooth(se = TRUE) +
+  ylab("Change in CESD (baseline - 6 months)") +
+  xlab("Baseline CESD")
+```
+
+```{r}
+data_update3 %>%
+  ggplot(aes(x = age, y = change_cesd)) +
+  geom_point() + 
+  geom_smooth() +
+  ylab("Change in CESD (baseline - 6 months)") +
+  xlab("Age")
+```
+
