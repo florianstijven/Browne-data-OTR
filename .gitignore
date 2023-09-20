@@ -2,3 +2,5 @@
 *.sas7bdat
 *.Rhistory
 *.rds
+*_cache
+*_files

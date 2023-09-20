@@ -341,22 +341,19 @@ pooled_inference_aggregated_rules_tbl = estimated_value_tbl %>%
   mutate(pooled_total_variance = pooled_within_variance + (1 + (1 / 40)) * pooled_between_variance)
 ```
 
-In this document, we examine the influence of different data analytic choices
-on the estimation of optimal treatment regimes in the *modified Browne data*:
-
-* The influence of the imputation model, i.e., global imputation versus imputation 
-per arm.
+In this document, we examine the influence of the imputation model, i.e., global
+imputation versus imputation per arm, on the estimation of optimal treatment
+regimes in the *modified Browne data*. The imputation per arm is a
+*proper* imputation while global imputation is improper.
 
 The *modified Browne data* are the Browne data where we artificially induce
 relationships between baseline covariates and the outcome variable. In what
 follows, we will only consider the CESD outcome measured at 6 months after
 randomization (denoted by $\texttt{cesd2}$). For estimating the optimal regimes, 
-we still consider the change scores, however. We further consider three modified
-versions of the Browne data, further referred to as the updated data 1, 2, and
-3. The modifications are briefly explained next, but a more detailed description
-and justification is given in a separate document. In the following bullet
-points, a tilde indicates the updated value for CESD at 6 months. Treatment $0$ is 
-"Sertraline alone" and treatment $1$ is "Sertraline and IPT".
+we still consider the change scores, however. 
+In the following bullet point, a tilde indicates the updated value for CESD at 6
+months. Treatment $0$ is "Sertraline alone" and treatment $1$ is "Sertraline and
+IPT".
 
 * **Update 1.**  The outcome value is modified as follows,
 $$\tilde{\texttt{cesd2}} = \texttt{cesd2} - (0.30 \cdot (\texttt{cesd} - 40) - 6 \cdot \texttt{past_MDD}) \cdot I(\texttt{group} = 1) + 0.20 \cdot (\texttt{cesd} - 40) + 4 \cdot \texttt{past_MDD}. $$
@@ -370,14 +367,11 @@ computational burden. The *per arm* and *global* imputation models are the same
 as for the analyses of the original Browne data.
 
 
-
-
 # Choice of Imputation Model
 
 In this section, we look at the influence of the imputation model on the
 estimation of regimes by Q-learning and value search estimation. We only look at
-the update 1 data. So, we do not consider the artificial settings where the
-outcome regression models are misspecified (update 2 and 3).
+the update 1 data.
 
 ## Estimated Values of Estimated Regimes
 
@@ -469,16 +463,16 @@ OTR_results %>%
 
 Finally, we aggregate the 40 estimated regimes in each setting (imputation and
 regime estimation method) with the circular mean. We consider the pooled
-estimate of the value and the corresponding 95% CIs in the following figure (by
-applying Rubin's rules). The results for the trivial regimes are added for
-reference.
+estimate of the value and the corresponding 95% CIs in the following figure and
+table (by applying Rubin's rules). The results for the trivial regimes are added
+for reference.
 
 The figure below confirms the previous results. Imputation per arm leads to a
 better aggregated regime in terms of the pooled estimate of its value. This
-holds for both Q-learning and value search estimation. Even though the
-difference for these data is likely of little clinical relevance, it is still a
-considerable difference when taking into account that only about 10% of the
-patients have missing values (at 6 months).
+holds for both Q-learning and value search estimation. Even though this
+difference is likely of little clinical relevance, it is still a considerable
+difference when taking into account that only about 10% of the patients have
+missing values (at 6 months).
 
 
 ```{r, fig.cap="Pooled estimates for the value of the aggregated regimes together with 95% confidence intervals for the update 1 data. The pooled estimates and confidence interval are obtained by applying Rubin's rules."}
@@ -500,23 +494,22 @@ pooled_inference_aggregated_rules_tbl %>%
   scale_fill_discrete(name = "OTR method") +
   ggtitle("Estimated Value with 95% CI")
 ```
-For completeness, we also summarize the information in the above figure in the 
-following table.
 
 ```{r}
 pooled_inference_aggregated_rules_tbl %>%
   filter(update == 1L,
          aggregation %in% c("Circular Mean", "One-Size-Fits-All")) %>%
   mutate(
-    lower_ci = pooled_estimated_value - 1.96 * sqrt(pooled_total_variance),
-    upper_ci = pooled_estimated_value + 1.96 * sqrt(pooled_total_variance)
+    "ll 95% CI" = pooled_estimated_value - 1.96 * sqrt(pooled_total_variance),
+    "ul 95% CI" = pooled_estimated_value + 1.96 * sqrt(pooled_total_variance)
   ) %>%
   select(imputation,
          OTR_method,
          pooled_estimated_value,
-         lower_ci,
-         upper_ci) %>%
-  knitr::kable(digits = 3)
+         "ll 95% CI",
+         "ul 95% CI") %>%
+  knitr::kable(digits = 3, 
+               caption = "Pooled estimated values for the aggregated regimes. Inference is based on the application of Rubin's rules.")
 ```
 
 
