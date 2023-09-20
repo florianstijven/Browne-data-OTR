@@ -1,0 +1,601 @@
+---
+title: "Artificial Data Analysis"
+author: "Florian Stijven"
+date: "`r Sys.Date()`"
+output:
+  word_document:
+    toc: true
+    number_sections: true
+  bookdown::html_document2:
+    toc: true
+    toc_float: true
+    number_sections: true
+---
+
+
+```{r, echo=FALSE, message=FALSE, warning=FALSE}
+knitr::opts_chunk$set(echo = FALSE,
+                      message = FALSE,
+                      warning = FALSE,
+                      fig.width = 10)
+# Load packages
+library(DynTxRegime)
+library(tidyverse)
+library(sas7bdat)
+# Specify file locations.
+OTR_vs_file_1 = "OTR analyses/OTR-estimation/VSC/results/OTR_artificial_results_cesd.rds"
+OTR_vs_file_2 = "OTR analyses/OTR-estimation/VSC/results/OTR_artificial_results_update_2_cesd.rds"
+OTR_q_file = "OTR analyses/OTR-estimation/OTR_q_results_update.rds"
+```
+
+```{r}
+# Function to standardize vector to unit norm.
+norm_vec = function(vec) {
+  # Normalize the vector
+  normed_vec = vec / sqrt(sum(vec * vec))
+  return(normed_vec)
+}
+```
+
+```{r}
+# Source file that contains functions to estimate the value of a given regime 
+# using the AIPW estimator, and the corresponding SE.
+source(file = "OTR analyses/value_AIPW.R")
+source(file = "OTR analyses/swv_ML.R")
+source(file = "OTR analyses/swv_OLS.R")
+source(file = "OTR analyses/value_AIPW_swv.R")
+source(file = "OTR analyses/value_AIPW_se.R")
+# Function to estimate the value of a regime based on the AIPW estimator. We 
+# need this additional function because the DynTxRegime package does not provide
+# function to estimate the value of regimes, estimated by Q-learning, with the
+# AIPW estimator. 
+value_regime_aipwe = function(regime, regime_allocation = optTx(regime)$optimalTx, se = TRUE) {
+  # formula for the outcome regression model.
+  OR_formula = regime@analysis@outcome@modelObj@model
+  # Propensity score model.
+  moPS <- modelObj::buildModelObj(
+    model = ~ 1,
+    solver.method = 'glm',
+    solver.args = list(family = 'binomial'),
+    predict.method = 'predict.glm',
+    predict.args = list(type = 'response')
+  )
+  # Outcome regression model.
+  moOR <- modelObj::buildModelObj(
+    model = OR_formula,
+    solver.method = 'lm',
+    predict.method = 'predict.lm'
+  )
+  # The imputed data set is extracted from the qlearning object.
+  data = regime@analysis@outcome@fitObj[["model"]]
+  # The outcome is extracted.
+  outcome = data$YinternalY
+  data = data[, -1]
+  # Return the estimated value.
+  if (se) {
+    value = value_AIPW_se(
+      moOR = moOR,
+      moPS = moPS,
+      data = data,
+      y = outcome,
+      txName = "group_int",
+      regime = regime_allocation
+    )
+  }
+  else {
+    value = value_AIPW(
+      moOR = moOR,
+      moPS = moPS,
+      data = data,
+      y = outcome,
+      txName = "group_int",
+      regime = regime_allocation
+    )
+  }
+
+}
+```
+
+
+
+```{r}
+# Load tibble that contains the estimated treatment regimes for the value search
+# estimator.
+OTR_value_search_tbl = 
+  bind_rows(
+    # Regimes estimated for update 1 data.
+    readRDS(OTR_vs_file_1) %>%
+      filter(update == 1L) %>%
+      mutate(outcome_model = "Correct") #,
+    # Regimes estimated for update 2 data.
+    # readRDS(OTR_vs_file_2)
+    ) %>%
+      rename(regime = OTR_estimated) %>%
+      mutate(estimated_value = sapply(X = regime,
+                                      FUN = estimator)) %>%
+      # Among the multiple runs, we select the run that has the largest estimated
+      # value.
+      group_by(X_Imputation_, outcome, imputation, update, outcome_model) %>%
+      slice_max(order_by = estimated_value,
+                n = 1,
+                with_ties = FALSE) %>%
+      ungroup() %>%
+      select(-seed) %>%
+      mutate(
+        regime_parameters = lapply(
+          X = regime,
+          FUN = function(x)
+            norm_vec(regimeCoef(x))
+        ),
+        optTx = lapply(
+          X = regime,
+          FUN = function(x)
+            optTx(x)[[1]]
+        )
+      ) %>%
+      mutate(
+        constant = t(as.data.frame(regime_parameters))[, 1],
+        sex = t(as.data.frame(regime_parameters))[, 2],
+        age = t(as.data.frame(regime_parameters))[, 3],
+        famfun = t(as.data.frame(regime_parameters))[, 4],
+        cesd = t(as.data.frame(regime_parameters))[, 5],
+        past_MDD = t(as.data.frame(regime_parameters))[, 6]
+      ) %>%
+      select(-regime_parameters, -regime)
+
+# Load tibble that contains the estimated treatment regimes for Q-learning.
+OTR_q_tbl = readRDS(file = OTR_q_file) %>%
+  ungroup()
+OTR_q_tbl = OTR_q_tbl %>%
+  mutate(
+    estimated_value = sapply(
+      X = regime,
+      FUN = function(x)
+        value_regime_aipwe(x, se = FALSE)$valueHat
+    ),
+    regime_parameters = lapply(
+      X = regime,
+      FUN = function(x)
+        coef(x)$outcome$Combined[c(
+          "group_int",
+          "sexFemale:group_int",
+          "age:group_int",
+          "famfun:group_int",
+          "cesd:group_int",
+          "past_MDDYes:group_int"
+        )]
+    ),
+    optTx = lapply(
+      X = regime,
+      FUN = function(x)
+        optTx(x)[[1]]
+    )
+  ) %>%
+  mutate(
+    constant = t(as.data.frame(regime_parameters))[, 1],
+    sex = t(as.data.frame(regime_parameters))[, 2],
+    age = t(as.data.frame(regime_parameters))[, 3],
+    famfun = t(as.data.frame(regime_parameters))[, 4],
+    cesd = t(as.data.frame(regime_parameters))[, 5],
+    past_MDD = t(as.data.frame(regime_parameters))[, 6]
+  ) %>%
+  select(-regime_parameters,-regime)
+```
+
+```{r, results='hide'}
+# The results for value search estimation with the multi-run approach  and
+# Q-learning are joined together in a single tibble.
+OTR_results = bind_rows(
+  OTR_value_search_tbl %>%
+    mutate(OTR_method = "value search"),
+  OTR_q_tbl %>%
+    mutate(OTR_method = "Q-learning") %>%
+  # We will further only look at CESD as outcome.
+  filter(outcome == "cesd")
+) 
+# The original tibbles are removed to clear up space. 
+# rm("OTR_value_search_tbl", "OTR_q_tbl")
+head(OTR_results)
+```
+
+```{r}
+# We again load the tibble that contains the estimated regimes by Q-learning.
+# This helps us to applying the aggregated regimes to the imputed data sets
+# without having to write much additional code.
+OTR_q_tbl = readRDS(file = OTR_q_file) %>%
+  ungroup() %>%
+  # We will further only look at CESD as outcome.
+  filter(outcome == "cesd")
+```
+
+```{r}
+# Function that implement the circular mean.
+circular_mean = function(x) {
+  # Get column names from x. These are used further on.
+  colnames_x = colnames(x)
+  # Ensure that the rows have a unit norm. This should be satisfied beforehand.
+  x = t(apply(as.matrix(x), MARGIN = 1, FUN = norm_vec))
+  
+  # Compute the columnwise mean.
+  mean_vector = apply(x, MARGIN = 2, FUN = mean)
+  # Convert the vector of means to a vector on the unit circle. This vector is
+  # put into a row of a data frame.
+  circular_mean_row = as.data.frame(t(data.frame(norm_vec(mean_vector))))
+  # Rename columns according to the original column names of x.
+  colnames(circular_mean_row) = colnames_x
+  return(circular_mean_row)
+}
+```
+
+```{r}
+# Aggregate estimated treatment regimes using the circular mean.
+circular_mean_aggregated = OTR_results %>%
+  group_by(imputation, OTR_method, update, outcome_model) %>%
+  reframe(
+    data.frame(constant, sex, age, famfun, cesd, past_MDD) %>%
+      circular_mean(),
+    param_vector = data.frame(constant, sex, age, famfun, cesd, past_MDD) %>%
+      circular_mean() %>%
+      as.numeric() %>%
+      list()
+  ) 
+```
+
+```{r}
+# Include the one-size-fits-all regimes. 
+trivial_rules_tbl = expand_grid(
+  imputation = c("Per Arm", "Global"),
+  OTR_method = c("One-Size-Fits-All (0)", "One-Size-Fits-All (1)"),
+  update = 1:2
+)
+trivial_rules_tbl = trivial_rules_tbl %>%
+  left_join(
+    tibble(
+      OTR_method = c("One-Size-Fits-All (0)", "One-Size-Fits-All (1)"),
+      regime_function = list(
+        function(x) return(rep(0L, nrow(x))),
+        function(x) return(rep(1L, nrow(x)))
+      )
+    )
+  )
+```
+
+
+```{r}
+# Combine different results of different aggregation methods into a single
+# tibble. We cannot yet include the tibble that contains the majority votes
+# regimes because the corresponding data handling is different.
+aggregated_rules_tbl =
+  circular_mean_aggregated %>%
+  mutate(aggregation = "Circular Mean")
+```
+
+```{r, cache=TRUE}
+# Add the aggregated treatment regimes as a function to the tibble.
+aggregated_rules_tbl = aggregated_rules_tbl %>%
+  mutate(regime_function = lapply(
+    X = param_vector,
+    FUN = function(param_vector) {
+      function(covariates_matrix) {
+        allocation = covariates_matrix %*% param_vector > 0
+        return(as.integer(allocation))
+      }
+    }
+  ))
+
+aggregated_rules_tbl = bind_rows(
+  aggregated_rules_tbl, 
+  trivial_rules_tbl %>%
+    mutate(aggregation = "One-Size-Fits-All", 
+           outcome_model = "Correct")
+)
+
+
+# Apply aggregated regimes to the imputed data sets.
+cont_formula = formula(~sex + age + famfun + cesd + past_MDD)
+estimated_value_tbl = OTR_q_tbl %>%
+  left_join(
+    aggregated_rules_tbl %>%
+      select(
+        imputation,
+        regime_function,
+        OTR_method,
+        aggregation,
+        update,
+        outcome_model
+      )
+  ) %>%
+  mutate(allocation = purrr::map2(
+    .x = regime,
+    .y = regime_function,
+    .f = function(regime, regime_function) {
+      # Extract imputed data set
+      data = regime@analysis@outcome@fitObj[["model"]]
+      # Extract columns we need in the correct order.
+      data = data[, c("sex", "age", "famfun", "cesd", "past_MDD")]
+      data = model.matrix(cont_formula, data)
+      regime_function(data)
+    }
+  )) %>%
+  mutate(estimated_value_list = purrr::map2(
+    .x = regime,
+    .y = allocation,
+    .f = function(regime, allocation) {
+      value_regime_aipwe(regime, allocation)
+    }
+  )) %>%
+  mutate(
+    estimated_value = purrr::map_dbl(estimated_value_list, "valueHat"),
+    estimated_value_se = purrr::map_dbl(estimated_value_list, "sigmaHat")
+  ) %>%
+  select(-regime, -regime_function, -allocation, -estimated_value_list)
+```
+
+```{r}
+# Apply Rubin's rules
+pooled_inference_aggregated_rules_tbl = estimated_value_tbl %>%
+  group_by(imputation, OTR_method, aggregation, update, outcome_model) %>%
+  summarise(
+    pooled_estimated_value = mean(estimated_value),
+    pooled_within_variance = mean(estimated_value_se ** 2),
+    pooled_between_variance = var(estimated_value)
+  ) %>%
+  ungroup() %>%
+  mutate(pooled_total_variance = pooled_within_variance + (1 + (1 / 40)) * pooled_between_variance)
+```
+
+In this document, we examine the influence of two different data analytic choices
+on the estimation of optimal treatment regimes in the *modified Browne data*:
+
+* The influence of the imputation model, i.e., global imputation versus imputation 
+per arm.
+* The influence of a misspecified outcome regression model on Q-learning versus
+value search estimation.
+
+The *modified Browne data* are the Browne data where we artificially induce
+relationships between baseline covariates and the outcome variable. In what
+follows, we will only consider the CESD outcome measured at 6 months after
+randomization (denoted by $\texttt{cesd2}$). For estimating the optimal regimes, 
+we still consider the change scores, however. We further consider three modified
+versions of the Browne data, further referred to as the updated data 1, 2, and
+3. The modifications are briefly explained next, but a more detailed description
+and justification is given in a separate document. In the following bullet
+points, a tilde indicates the updated value for CESD at 6 months. Treatment $0$ is 
+"Sertraline alone" and treatment $1$ is "Sertraline and IPT".
+
+* **Update 1.**  The outcome value is modified as follows,
+$$\tilde{\texttt{cesd2}} = \texttt{cesd2} - (0.30 \cdot (\texttt{cesd} - 40) - 6 \cdot \texttt{past_MDD}) \cdot I(\texttt{group} = 1) + 0.20 \cdot (\texttt{cesd} - 40) + 4 \cdot \texttt{past_MDD}. $$
+This update changes the interaction effects. Patients will thus benefit
+more from the addition of IPT to Sertraline if they have a more severe
+depression at baseline (larger baseline CESD and past MDD).
+* **Update 2.** The outcome value is modified as follows where $\texttt{cesd2}$ is 
+now the outcome value after update 1,
+$$\tilde{\texttt{cesd2}} = \texttt{cesd2} + 0.01 \cdot (\texttt{age} - 25)^2. $$
+This update thus changes the main effects only. After this update, a linear
+regression model without quadratic age effect will thus be misspecified.
+
+In the following analyses, we will only consider 40 imputations instead of the
+200 imputations used for analyzing the original Browne data. This limits the 
+computational burden. The *per arm* and *global* imputation models are the same
+as for the analyses of the original Browne data.
+
+
+
+
+# Choice of Imputation Model
+
+In this section, we look at the influence of the imputation model on the
+estimation of regimes by Q-learning and value search estimation. We only look at
+the update 1 data. So, we do not consider the artificial settings where the
+outcome regression models are misspecified (update 2 and 3).
+
+## Estimated Values of Estimated Regimes
+
+In the following histograms, the estimated values of the estimated regimes are
+summarized across the 40 imputations. These histograms show that imputation per 
+arm leads to larger estimated values.
+
+```{r, fig.cap="Frequency distribution of the estimated values of the estimated regimes across the imputations for the update 1 data. Note that each histogram represents 40 estimated values of 40, possibly different, estimated regimes. The value is estimated by the AIPW estimator which is explained at the end of the document for the original Browne data."}
+OTR_results %>%
+  filter(update == 1L) %>%
+  ggplot(aes(x = estimated_value)) +
+  geom_histogram(color = "black", fill = "gray") +
+  geom_vline(
+    data = estimated_value_tbl %>%
+      filter(aggregation == "One-Size-Fits-All", update == 1) %>%
+      group_by(outcome, imputation, OTR_method) %>%
+      summarise(pooled_estimated_value = mean(estimated_value)) %>%
+      rename("Value of Trivial Regimes" = OTR_method),
+    mapping = aes(xintercept = pooled_estimated_value, color = `Value of Trivial Regimes`)
+  )  +
+  xlab("Estimated Value") +
+  ylab("Frequency") +
+  scale_color_discrete(name = "Value of Trivial Regimes") +
+  facet_grid(imputation ~ OTR_method)
+```
+
+The following table summarizes the above results. This confirms our previous
+conclusions. 
+
+```{r}
+OTR_results %>%
+  filter(update == 1L) %>%
+  group_by(imputation, OTR_method) %>%
+  summarise("Mean Estimated Value" = mean(estimated_value),
+            "Between Imputation SD" = sd(estimated_value)) %>%
+  arrange(OTR_method) %>%
+  knitr::kable(digits = 3, 
+               caption = "Average estimated value of the estimated regimes across the imputed data sets and the corresponding standard deviation. Note that each value is the average of 40 estimated values of 40, possibly different, estimated regimes. The value is estimated by the AIPW estimator which is explained at the end of the document for the original Browne data.")
+```
+
+## Distance from One-Size-Fits-All of Estimated Regimes
+
+In the following figure and table, the same estimated regimes as above are summarized
+by the corresponding $d = \min(p_1, p_2)$. This value measures the distance of 
+the estimated regimes from a one-size-fits-all regime. The corresponding average
+distances are summarized in the following table. 
+
+For Q-learning, estimated regimes under imputation per arm tend to be further 
+away from one-size-fits-all. However, there is no considerable difference for
+the regimes estimated by value search estimation.
+
+```{r, fig.cap="Frequency distribution of the distance from one-size-fits-all for the estimated regimes across the imputations."}
+OTR_results %>%
+  filter(update == 1) %>%
+    mutate(d = sapply(
+    X = optTx, 
+    FUN = function(x) {
+      p = mean(x)
+      return(min(c(p, 1 - p)))
+    }
+  )) %>%
+  ggplot(aes(x = d))+
+  geom_histogram(color = "black", fill = "gray") +
+  xlim(c(0.3, 0.5)) +
+  xlab("Distance from One-Size-Fits-All regime (d)") +
+  ylab("Frequency") +
+  facet_grid(imputation~OTR_method)
+```
+
+
+```{r}
+OTR_results %>%
+  filter(update == 1) %>%
+    mutate(d = sapply(
+    X = optTx, 
+    FUN = function(x) {
+      p = mean(x)
+      return(min(c(p, 1 - p)))
+    }
+  )) %>%
+  group_by(imputation, OTR_method) %>%
+  summarise(mean_d = mean(d)) %>%
+  tidyr::pivot_wider(values_from = "mean_d", names_from = "imputation") %>%
+  knitr::kable(digits = 3,
+               caption = "Average distance from one-size-fits-all of the estimated regimes across the imputed data sets. Note that each value is the average of 40 distances of 40, possibly different, estimated regimes.")
+```
+
+## Aggregated Regimes
+
+Finally, we aggregate the 40 estimated regimes in each setting (imputation and
+regime estimation method) with the circular mean. We consider the pooled
+estimate of the value and the corresponding 95% CIs in the following figure (by
+applying Rubin's rules). The results for the trivial regimes are added for
+reference.
+
+The figure below confirms the previous results. Imputation per arm leads to a
+better aggregated regime in terms of the pooled estimate of its value. This
+holds for both Q-learning and value search estimation. Even though the
+difference for these data is likely of little clinical relevance, it is still a
+considerable difference when taking into account that only about 10% of the
+patients have missing values (at 6 months).
+
+
+```{r, fig.cap="Pooled estimates for the value of the aggregated regimes together with 95% confidence intervals for the update 1 data. The pooled estimates and confidence interval are obtained by applying Rubin's rules."}
+pooled_inference_aggregated_rules_tbl %>%
+  filter(update == 1L, aggregation %in% c("Circular Mean", "One-Size-Fits-All")) %>%
+  ggplot(aes(y = OTR_method, x = pooled_estimated_value, color = imputation)) +
+  geom_point(aes(fill = imputation), position = position_dodge(width = .3)) +
+    geom_errorbarh(
+    aes(
+      xmin = pooled_estimated_value - 1.96 * sqrt(pooled_total_variance),
+      xmax = pooled_estimated_value + 1.96 * sqrt(pooled_total_variance)
+    ),
+    height = 0.2,
+    position = position_dodge(width = .3),
+  ) +
+  xlab("Pooled Estimated Value") +
+  ylab("Estimation Method") +
+  scale_color_discrete(name = "OTR method") +
+  scale_fill_discrete(name = "OTR method") +
+  ggtitle("Estimated Value with 95% CI")
+```
+
+In the next table, the aggregated regime parameters are summarized. The
+estimated parameters for CESD and past MDD tend to be closer to zero under
+global imputation. Although the difference in estimated parameters is relatively
+small, there is a considerable difference in the corresponding pooled estimated
+value (as was shown above).
+
+```{r}
+interpretation_tbl = aggregated_rules_tbl %>%
+  filter(update == 1, OTR_method %in% c("Q-learning", "value search")) %>%
+  # For Q-learning, the regime is aggregated with Rubin's rules. Therefore, the
+  # aggregated regime's parameter vector will not have the unit norm. To ease
+  # comparison of parameters, we convert these parameter vectors to unit norm.
+  mutate(norm = sapply(
+    X = param_vector,
+    FUN = function(param_vector)
+      sqrt(sum(param_vector * param_vector))
+  )) %>%
+  # Divide the regime parameters by the norm. 
+  mutate(constant = constant / norm,
+         sex = sex / norm,
+         age = age / norm,
+         famfun = famfun / norm,
+         cesd = cesd / norm,
+         past_MDD = past_MDD / norm) %>%
+  select(c(1:2, 4:9)) %>%
+  arrange(OTR_method)
+# Add variable names with information on the dummy coding.
+# colnames(interpretation_tbl)[3:8] = covariate_coding_names
+interpretation_tbl %>%
+  knitr::kable(digits = 3,
+               caption = "Linear regime parameter estimates for the aggregated regimes (without additional modificiations) for the update 1 data. The respective parameter vectors have unit norm.")
+```
+
+
+# Misspecification of Main Effects
+
+In this section, we will look at the influence of misspecification of the
+outcome regression model on Q-learning versus value search estimation.
+Q-learning relies on a correctly specified outcome regression model while the
+value search estimator does not. However, this does not mean that Q-learning
+will perform much worse under all types of misspecifications. We have
+artificially added a quadratic effect of age on CESD at 6 months to the data.
+
+In this section, we only consider imputation per arm. Note that a quadratic age
+effect has also been added to the imputation model. This is consistent with proper
+imputation: the imputation model and analysis model should not contradict each
+other. Since we use a quadratic age effect in the analyses with correctly
+specified outcome regression model, we should also include it in the imputation
+model.
+
+We conduct four analyses: Q-learning and value search estimation, each with
+and without a correctly specified outcome regression model.
+
+In the next figure, the pooled estimated value of the aggregated regimes are
+summarized together with 95% CI's. The values of the aggregated regimes are
+estimated with the AIPW estimator that uses the same outcome regression model
+as the estimator for the optimal regimes. 
+
+It is clear that failing to include a quadratic effect of age in the outcome
+regression model for Q-learning does not have an important effect on the
+estimated regime's value. The same is true for value search estimation.
+
+
+We next look at the same comparisons, but *before* aggregation, i.e., the
+estimated values of the estimated regimes in each imputed data set. The
+advantage of comparing both methods *before aggregation* is that the aggregation
+method cannot influence the comparison.
+
+```{r, fig.cap="Frequency distribution of the estimated values of the estimated regimes across the imputations for the update 2 data. Note that each histogram represents 40 estimated values of 40, possibly different, estimated regimes."}
+OTR_results %>%
+  filter(update == 3L) %>%
+  ggplot(aes(x = estimated_value)) +
+  geom_histogram(color = "black", fill = "gray") +
+  # geom_vline(
+  #   data = pooled_inference_aggregated_rules_tbl %>%
+  #     filter(aggregation == "One-Size-Fits-All", update == 2L) %>%
+  #     rename("Value of Trivial Regimes" = OTR_method) %>%
+  #     select(-outcome_model),
+  #   mapping = aes(xintercept = pooled_estimated_value, color = `Value of Trivial Regimes`)
+  # ) +
+  xlab("Estimated Value") +
+  ylab("Frequency") +
+  scale_color_discrete(name = "Value of Trivial Regimes") +
+  facet_grid(outcome_model ~ quadratic)
+```
+
+
+

@@ -1,0 +1,613 @@
+---
+title: "Evaluation of Tuning Parameters in the Genetic Algorithm"
+author: "Florian Stijven"
+date: "`r Sys.Date()`"
+output:
+  html_document: default
+  word_document: default
+---
+
+```{r, echo=FALSE, message=FALSE, warning=FALSE}
+knitr::opts_chunk$set(echo = FALSE,
+                      message = FALSE,
+                      warning = FALSE,
+                      fig.width = 10)
+# Load packages
+library(DynTxRegime)
+library(tidyverse)
+library(sas7bdat)
+# Specify file locations.
+OTR_tuning_parameters_file = "OTR analyses/tuning-parameters/VSC/results/OTR_results-tuning-parameters.rds"
+OTR_starting_values_file = "OTR analyses/tuning-parameters/VSC/results/OTR_results-starting-values.rds"
+imputed_data_file_compatible = "Multiple Imputation/Compatible MI/final_mi.sas7bdat"
+imputed_data_file_incompatible = "Multiple Imputation/Incompatible MI/final_mi_incompatible.sas7bdat"
+```
+
+
+```{r}
+# Function to standardize vector to unit norm.
+norm_vec = function(vec) {
+  # Normalize the vector
+  normed_vec = vec / sqrt(sum(vec * vec))
+  return(normed_vec)
+}
+```
+
+```{r,results='hide'}
+# The imputed data sets are loaded and put into an easy-to-use format. These
+# data are used further on to compute some summary measures. Load sas data sets
+# into R.
+imputed_data_compatible = read.sas7bdat(imputed_data_file_compatible)
+imputed_data_incompatible = read.sas7bdat(imputed_data_file_incompatible)
+# Join the sets of imputed data sets while adding a variable that indicates the
+# type of imputation.
+imputed_data = bind_rows(
+  imputed_data_compatible %>%
+    mutate(imputation = "compatible"),
+  imputed_data_incompatible %>%
+    mutate(imputation = "incompatible")
+)
+
+# Drop third treatment arm.
+imputed_data = imputed_data %>%
+  dplyr::filter(group != 3)
+# Recode the group, sex, and disorder variables into a factor variables.
+imputed_data = imputed_data %>%
+  mutate(group = factor(
+    group,
+    labels = c("Sertraline alone", "Sertraline and IPT"),
+    levels = 1:2
+  ),
+  sex = factor(
+    sex,
+    labels = c("Male", "Female"),
+    levels = 1:2
+  ),
+  disorder = factor(
+    disorder,
+    labels = c("Never", "Past", "Current", "Current and Past"),
+    levels = 1:4
+  ))
+# Recode disorder variable into two binary variables.
+imputed_data = imputed_data %>%
+  mutate(
+    past_MDD = fct_collapse(
+      .f = disorder,
+      "No" = c("Never", "Current"),
+      "Yes" = c("Past", "Current and Past")
+    ),
+    current_MDD = fct_collapse(
+      .f = disorder,
+      "No" = c("Never", "Past"),
+      "Yes" = c("Current", "Current and Past")
+    )
+  )
+imputed_data %>% head()
+# Data are transformed from wide to long format. In the long data set, there is
+# one row for each post-randomization outcome.
+imputed_data_long = imputed_data %>%
+  pivot_longer(
+    cols = 14:28,
+    names_to = c("outcome", "time"),
+    values_to = "value",
+    names_sep = -1
+  ) %>%
+  mutate(time = fct_recode(
+    .f = time,
+    "6 months" = "2",
+    "1 year" = "3",
+    "2 years" = "4"
+  ))
+# Change variable names to improve consistency.
+imputed_data_long = imputed_data_long %>%
+  dplyr::rename(madrs = madrsv1, sas = sasb) %>%
+  mutate(outcome = ifelse(outcome == "madrst", "madrs", outcome),
+         outcome = ifelse(outcome == "sasb", "sas", outcome))
+# In addition to the observed scale at each time point, we add the change from 
+# baseline as an additional outcome. 
+imputed_data_long = imputed_data_long %>%
+  mutate(change_score = 
+           ifelse(outcome == "madrs", madrs - value, 0) +
+           ifelse(outcome == "sas", sas - value, 0) +
+           ifelse(outcome == "famfun", famfun - value, 0) +
+           ifelse(outcome == "cesd", cesd - value, 0) +
+           ifelse(outcome == "vas", value - vas, 0),
+         # We also add a numeric variable for the treatment.
+         group_int = as.integer(group) - 1)
+
+# Print group means across imputed data sets as a check to the processed data
+# integrity.
+imputed_data_long %>%
+  group_by(outcome, time, group, group_int) %>%
+  summarise(mean_score = mean(change_score))
+```
+
+
+```{r setup, include=FALSE}
+# Load tibble that contains the estimated treatment regimes for the value search
+# estimator.
+OTR_tuning_parameters_tbl = readRDS(file = OTR_tuning_parameters_file) %>%
+  ungroup()
+OTR_tuning_parameters_tbl = OTR_tuning_parameters_tbl %>%
+  rename(regime = OTR_estimated) %>%
+  mutate(
+    estimated_value = sapply(X = regime,
+                             FUN = estimator),
+    regime_parameters = lapply(
+      X = regime,
+      FUN = function(x)
+        norm_vec(regimeCoef(x))
+    )
+  ) %>%
+    select(-regime_parameters, -regime)
+```
+
+```{r}
+# Load tibble that contains the estimated treatment regimes for the value search
+# estimator.
+OTR_starting_values_tbl = readRDS(file = OTR_starting_values_file) %>%
+  ungroup()
+OTR_starting_values_tbl = OTR_starting_values_tbl %>%
+  rename(regime = OTR_estimated) %>%
+  mutate(
+    estimated_value = sapply(X = regime,
+                             FUN = estimator),
+    regime_parameters = lapply(
+      X = regime,
+      FUN = function(x)
+        norm_vec(regimeCoef(x))
+    )
+  ) %>%
+    select(-regime_parameters, -regime)
+```
+
+In this document, we empirically examine the influence of the tuning parameters
+in the genetic algorithm (GA) that is used in the implementation of the value
+search estimator. Details on the value search estimator are provided at the end
+of this document. Throughout this document, the performance of the GA is
+assessed by the estimated value of the estimated optimal regime. The GA
+maximizes the estimated value in the regime parameters, hence optimization
+approaches that lead to larger estimated values are better. Throughout this
+document, an *optimization approach* is defined as the combination of tuning
+parameters (i.e., population size), starting values and number of independent
+runs in the GA.
+
+The performance of the optimization approaches is assessed on all five outcomes
+and 20 imputed data sets. For computational reasons, we do not consider all 200
+imputed data sets. Nonetheless, 20 imputed data sets are sufficient to draw
+valuable conclusions. This document contains two main parts:
+
+1. The influence of the population size and the number of independent runs. In
+this part, the regime parameters estimated by Q-learning provide the starting
+values for the GA.
+2. The influence of the type of starting values. Three ways of determining
+starting values are considered: (i) parameter estimates from Q-learning (as used
+in part 1), (ii) random starting values, and (iii) the zero vector as starting
+values.
+
+# Performance of the Genetic Algorithm in the Value Search Estimator
+
+A GA is used in the value search estimator that is implemented in the
+`DynTxRegime` R-package. This package relies on the GA that is implemented in
+the `rgenoud` R-package. While a GA typically has many tuning parameters, the
+most important tuning parameter is the population size. In the documentation of
+the `rgenoud` package, it is illustrated how the population size influences the
+performance of the GA for a wide variety of benchmark objective functions. In
+these illustrations, a population size between 1000 and 10.000 is used. Larger
+population sizes generally (but not always) lead to better solutions, but at the
+price of a greatly increased running time. This improved performance is expected
+because the theorems proving that GAs find good solutions are asymptotic in the
+population size (and number of generations). Tuning parameters regarding the
+number of generations is left unmodified at the default values in `rgenoud`.
+
+There is no guarantee that the treatment regime found by the GA corresponds to
+the global optimum. A *seemingly* appropriate way to assess whether the tuning
+parameters are appropriate is to run the GA multiple times with a different seed
+(and possibly different starting values). If the estimated treatment regimes
+across these different runs are (nearly) equivalent, then this *could* be
+evidence that the population size and other tuning parameters are appropriate.
+Nevertheless, this does not provide an absolute guarantee that a good solution,
+let alone a global optimum will be found. In fact, one should instead compare
+different optimization approaches in terms of the corresponding maximized
+objective functions, i.e., the estimated values. Further on, it is illustrated
+with the Browne data that small variability between independent runs can indeed
+be a misleading indicator of good performance.
+
+In the accompanying website for the book *Dynamic Treatment Regimes* by Tsiatis
+et al., use of `DynTxRegime` is illustrated. The population size used in those
+illustrations is 1000. This is also the default population size in the genetic
+algorithm implemented in `rgenoud`. The population size in the code of Zhang and
+Zhang (2018) varies between 700 and 3000, depending on the number of parameters
+in the regime. The GA is run only once in those applications. However, we show
+next that a single run with this population size is insufficient for our
+application. Additionally, it will be shown that a different population size can
+improve the performance of the GA.
+
+In the remainder of this section, we will vary two aspects of the tuning
+parameters:
+
+1. The population size is varied between 500, 1000, and 3000.
+2. The number of independent runs of the GA is varied between 1
+and 5. For a population size of 500, a scenario with 20 independent runs is
+additionally included.
+
+Note that it is also important to consider how "independent" runs relate to each
+other across these different optimization approaches. 
+
+To ensure independent runs within each multi-run approach, distinct seeds were
+used:
+
+* The seed `1` was used in all single-run approaches.
+* The seeds `11:15` were used in multi-run approaches with 5 independent runs.
+* The seeds `101:120` were used in the multi-run approach with 20 independent
+runs.
+
+Note that the same seeds are used across approaches with the same number of
+independent runs. 
+
+## Variation in Estimated Value in Independent Runs
+
+In this subsection, we examine the variability between independent runs of the
+GA. As noted before, low variability between independent runs does not
+necessarily mean that the solutions are close to the global optimum. The results
+in this subsection should be interpreted with this in mind. In fact, the results
+in this and the next subsection provide a warning against using the variability 
+between independent runs of the GA as a measure of performance.
+
+In what follows, we will only consider the results with 5 independent runs for a
+population size of 500, 1000, and 3000. The standard deviation of the
+corresponding 5 values is computed and averaged over all imputed data sets for
+each of the 5 outcomes and 3 population sizes. These average standard deviations
+are summarized in the table and figure below. These average standard deviations
+summarize how much variability there is in multiple independent runs of the GA
+on the same data. The average standard deviation is given as a percentage of the
+range of the corresponding scale. This allows us to better appreciate the
+magnitude of the variation between multiple runs of the GA. The last column
+contains the corresponding standard error for the estimated average standard
+deviation.
+
+```{r}
+OTR_tuning_parameters_tbl %>%
+  filter(imputation == "compatible", (seed %/% 10) == 1) %>%
+  group_by(X_Imputation_, outcome, population_size) %>%
+  summarise(sd_5 = sd(estimated_value)) %>%
+  ungroup() %>%
+  group_by(outcome, population_size) %>%
+  summarise(mean_sd = mean(sd_5),
+            mean_se = sd(sd_5) / sqrt(20)) %>%
+  left_join(
+    imputed_data_long %>%
+      group_by(outcome, time) %>%
+      summarise(mean_score = mean(change_score)) %>%
+      filter(time == "6 months") %>%
+      select(-time) %>% 
+      ungroup() %>%
+      mutate("Range of Scale" = c(60, 3, 60, 4, 100))
+  ) %>%
+  ungroup() %>%
+  mutate("% of Range" = 100 * mean_sd / `Range of Scale`,
+         "SE for % of Range" = sqrt(100 / `Range of Scale`) * mean_se) %>%
+  select(-mean_sd, -mean_score, -mean_se) %>%
+  knitr::kable(digits = 3)
+```
+
+The above table is visualized next. The error bars indicate the average standard 
+deviation +/- one standard error.
+
+```{r}
+OTR_tuning_parameters_tbl %>%
+  filter(imputation == "compatible", (seed %/% 10) == 1) %>%
+  group_by(X_Imputation_, outcome, population_size) %>%
+  summarise(sd_5 = sd(estimated_value)) %>%
+  ungroup() %>%
+  group_by(outcome, population_size) %>%
+  summarise(mean_sd = mean(sd_5),
+            mean_se = sd(sd_5) / sqrt(20)) %>%
+  left_join(
+    imputed_data_long %>%
+      group_by(outcome, time) %>%
+      summarise(mean_score = mean(change_score)) %>%
+      filter(time == "6 months") %>%
+      select(-time) %>% 
+      ungroup() %>%
+      mutate("Range of Scale" = c(60, 3, 60, 4, 100))
+  ) %>%
+  ungroup() %>%
+  mutate("% of Range" = 100 * mean_sd / `Range of Scale`,
+         "SE for % of Range" = sqrt(100 / `Range of Scale`) * mean_se) %>%
+  ggplot(aes(x = population_size, y = `% of Range`, color = outcome)) +
+  geom_point() +
+  geom_line() +
+  geom_errorbar(aes(ymin = `% of Range` - `SE for % of Range`,
+                    ymax = `% of Range` + `SE for % of Range`),
+                width = 50) +
+  scale_x_continuous(breaks = c(500, 1000, 3000)) +
+  xlab("Population Size")
+```
+
+We can make three important observations with the above results. 
+
+* The variation in the estimated value across multiple runs of the GA
+is relatively small in comparison to the ranges of the corresponding scales. 
+Still, this variation is not negligible. Indeed, in individual data sets, the 
+differences in estimated values across multiple runs and/or optimization approaches
+can be considerable. This is further shown in the next subsection.
+* A larger population size does not generally lead to less variation among
+independent runs of the GA. The relation between this variation 
+and the population size depends on the outcome. 
+* For SAS, the variation is considerably smaller with a population size of 500
+than with a larger population size. Nonetheless, it is shown in the next
+subsection that 5 runs with a population size of 3000 is better than 20 runs
+with a population size of 500 for SAS. This illustrates that a small variation
+among independent runs of the GA does not mean that the tuning parameters are
+appropriate.
+
+The above results should be interpreted with caution. Indeed, little variation
+among independent runs could mean two very different things: (i) the genetic
+algorithm often finds a similar local optimum and (ii) the GA
+often finds solutions close to the global optimum. Based on the above results,
+we cannot distinguish between these two situations since we do not know the
+global optimum. In what follows, we will examine this further by looking at
+which tuning parameters lead to the highest estimated values, i.e., which tuning
+parameters lead to solutions closest to the global optimum.
+
+## Comparison of Optimization Strategies
+
+In the following plot, we compare the performance of 5 different optimization 
+strategies. In these five strategies, the number of independent runs and/or 
+the population size are varied. Performance is assessed by the estimated value.
+Note that in the multi-run scenarios, only the run with the highest estimated
+value is retained. 
+
+
+```{r}
+OTR_tuning_parameters_tbl %>%
+  mutate(multi_run = ifelse(seed == 1, 1L,
+                            ifelse(seed %in% 11:15, 5L, 20L))) %>%
+  mutate(multi_run = factor(x = multi_run, levels = c(1L, 5L, 20L))) %>%
+  group_by(outcome, X_Imputation_, population_size, multi_run) %>%
+  slice_max(order_by = estimated_value, n = 1) %>%
+  left_join(tibble(
+    outcome = c("cesd", "famfun", "madrs", "sas", "vas"),
+    range = c(60, 3, 60, 4, 100)
+  ))  %>%
+  ggplot(aes(x = X_Imputation_, y = estimated_value, color = as.factor(multi_run),
+             shape = as.factor(population_size))) +
+  geom_point() +
+  geom_line() +
+  facet_grid(rows = "outcome", scales = "free_y") +
+  scale_color_discrete(name = "Number of Runs") +
+  scale_shape_discrete(name = "Population Size") +
+  xlab("Imputation Number") + 
+  ylab("Estimated Value")
+  
+```
+
+The above figure leads to important insights.
+
+* In some imputed data sets, the difference between the optimization
+approaches is very substantial, e.g., first imputation for FAMFUN. In other
+imputed data sets, there is little difference between the optimization
+approaches, e.g., first imputation for MADRS.
+* Multi-run approaches generally outperform the single-run approaches. This holds
+for all outcomes and most imputed data sets. This is expected behavior. Note that the
+runs in single-run approaches are *not* subsets of the runs in multi-run
+approaches. Hence, it is possible that a single-run approach incidentally yields
+a higher estimated value than the corresponding multi-run approach.
+* There is no approach that consistently leads to the highest estimated value, 
+even looking at each outcome separately. 
+
+Taking the above observations into account, we reproduce the plot above but now
+only including the multi-run approaches. This allows us to better examine the
+differences between the multi-run approaches.
+
+```{r}
+OTR_tuning_parameters_tbl %>%
+  mutate(multi_run = ifelse(seed == 1, 1L,
+                            ifelse(seed %in% 11:15, 5L, 20L))) %>%
+  group_by(outcome, X_Imputation_, population_size, multi_run) %>%
+  slice_max(order_by = estimated_value, n = 1) %>%
+  left_join(tibble(
+    outcome = c("cesd", "famfun", "madrs", "sas", "vas"),
+    range = c(60, 3, 60, 4, 100)
+  )) %>%
+  filter(multi_run >= 5) %>%
+  mutate(multi_run = factor(x = multi_run, levels = c(1L, 5L, 20L))) %>%
+  ggplot(aes(x = X_Imputation_, y = estimated_value, color = as.factor(multi_run),
+             shape = as.factor(population_size))) +
+  geom_point() +
+  geom_line() +
+  facet_grid(rows = "outcome", scales = "free_y") +
+  scale_color_discrete(name = "Number of Runs", drop = FALSE) +
+  scale_shape_discrete(name = "Population Size") +
+  xlab("Imputation Number") + 
+  ylab("Estimated Value") +
+  guides(colour = guide_legend(order = 2),
+         shape = guide_legend(order = 1))
+```
+
+In the following table, we summarize the proportion of times each optimization
+approach is best across the imputed data sets, stratified by outcome. Note that
+the proportions for each outcome sometimes sum to values larger than 1. This is
+not an error since different optimization approaches lead to the same solution
+in some settings. In that case, both approaches are counted as "best" for that
+imputed data set. This table shows us that:
+
+* 20 runs with a population size of 500 performs best for CESD, FAMFUN, and MADRS.
+* 5 runs with a population size of 3000 performs best for SAS and VAS. 
+
+```{r}
+OTR_tuning_parameters_tbl %>%
+  mutate(multi_run = ifelse(seed == 1, 1L,
+                            ifelse(seed %in% 11:15, 5L, 20L))) %>%
+  group_by(outcome, X_Imputation_, population_size, multi_run) %>%
+  slice_max(order_by = estimated_value, n = 1, with_ties = FALSE) %>%
+  left_join(tibble(
+    outcome = c("cesd", "famfun", "madrs", "sas", "vas"),
+    range = c(60, 3, 60, 4, 100)
+  )) %>%
+  left_join(
+    OTR_tuning_parameters_tbl %>%
+      group_by(outcome, X_Imputation_) %>%
+      summarise(top_value = max(estimated_value))
+  ) %>%
+  group_by(outcome, population_size, multi_run) %>%
+  summarise(proportion_best = mean(estimated_value == top_value)) %>%
+  pivot_wider(names_from = outcome, values_from = proportion_best) %>%
+  knitr::kable()
+```
+
+
+Hence, 2 different approaches perform best for the five outcomes. Because this
+table does not take into account the magnitude of the difference, we summarize
+the difference in estimated values between these two approaches next in
+histograms. Each histogram contains 20 such differences, 1 for each imputed data
+set.
+
+```{r}
+OTR_tuning_parameters_tbl %>%
+  mutate(multi_run = ifelse(seed == 1, 1L,
+                            ifelse(seed %in% 11:15, 5L, 20L))) %>%
+  group_by(outcome, X_Imputation_, population_size, multi_run) %>%
+  slice_max(order_by = estimated_value,
+            n = 1,
+            with_ties = FALSE) %>%
+  left_join(tibble(
+    outcome = c("cesd", "famfun", "madrs", "sas", "vas"),
+    range = c(60, 3, 60, 4, 100)
+  )) %>%
+  filter((multi_run == 5 &
+            population_size == 3000) |
+           (multi_run == 20 & population_size == 500)) %>%
+  pivot_wider(
+    names_from = population_size,
+    values_from = estimated_value,
+    names_prefix = "pop_size_",
+    id_cols = c("X_Imputation_", "outcome")
+  ) %>%
+  mutate(difference = pop_size_500 - pop_size_3000) %>%
+  left_join(tibble(
+    outcome = c("cesd", "famfun", "madrs", "sas", "vas"),
+    range = c(60, 3, 60, 4, 100)
+  )) %>%
+  mutate(difference_range = 100 * difference / range,
+         worse = ifelse(difference_range <= 0, "population size = 3000 and 5 runs better", 
+                        "population size = 500 and 20 runs better")) %>%
+  ggplot(aes(x = difference_range, fill = worse)) +
+  geom_histogram() +
+  facet_grid(outcome~., scales = "free_x") +
+  xlab("Difference in Estimated Values (% of Range)")
+```
+
+# Starting Values
+
+In this section, we examine the influence of starting values. The following 
+choices for starting values are considered:
+
+1. The optimal regime is first estimated by Q-learning. This estimated parameter
+vector is then converted to a vector with unit norm. This normed vector is used
+as starting value. The class of regimes considered by Q-learning is the same as
+the class considered in the value search estimator. These starting values were
+used in the preceding sections.
+2. Random starting values. These starting values are independently sampled from 
+a uniform distribution with range $(-1, 1)$.
+3. All starting values are set to zero. This approach is used in the illustrations
+on the website of the *Dynamic Treatment Regimes* book by Tsiatis et al.
+
+As optimization approach, we combine 5 runs with a population size of 3000 and
+20 runs with a population size of 500. In the next plot, we compare the
+estimated values for identical optimization approaches, but different starting
+values.
+
+```{r}
+OTR_starting_values_tbl %>%
+  group_by(outcome, X_Imputation_, starting_value) %>%
+  slice_max(order_by = estimated_value,
+            n = 1,
+            with_ties = FALSE) %>%
+  ggplot(aes(
+    x = X_Imputation_,
+    y = estimated_value,
+    color = starting_value
+  )) +
+  geom_point() +
+  geom_line() +
+  facet_grid(rows = "outcome", scales = "free_y") +
+  scale_color_discrete(name = "Type of Starting Values") +
+  xlab("Imputation Number") +
+  ylab("Estimated Value")
+```
+
+The above plot indicates that (for the optimization approach considered)
+determining starting values as the estimated parameters from Q-learning performs
+best. The difference is very outspoken for CESD and MADRS, but not for FAMFUN,
+SAS, and VAS. The same table as before, summarizing the proportion of times a
+particular choice of starting values is best, is given next. This table confirms 
+that starting values provided by Q-learning generally perform best.
+
+```{r}
+OTR_starting_values_tbl %>%
+  group_by(outcome, X_Imputation_, starting_value) %>%
+  slice_max(order_by = estimated_value, n = 1, with_ties = FALSE) %>%
+  left_join(
+    OTR_starting_values_tbl %>%
+      group_by(outcome, X_Imputation_) %>%
+      summarise(top_value = max(estimated_value))
+  ) %>%
+  group_by(outcome, starting_value) %>%
+  summarise(proportion_best = mean(estimated_value == top_value)) %>%
+  pivot_wider(names_from = outcome, values_from = proportion_best) %>%
+  knitr::kable()
+```
+
+
+# Conclusions
+
+The default tuning parameters used by the `DynTxRegime` package result in
+suboptimal performance in our application. Researchers should be mindful of this
+when using this package. In an application with no missing data, finding the
+best tuning parameters is relatively straightforward, but additional issues
+arise when one is working with multiply imputed data sets. Based on the findings
+reported in this document, we can make the following recommendations to
+researchers applying the value search estimator after multiple imputation.
+
+* One should be careful with interpreting a small variability between independent runs
+of the GA as implying appropriate tuning parameters. Instead, it is better to
+compare the estimated values directly between different optimization approaches.
+* When searching for an optimal optimization approach with the GA, it is
+insufficient to look at what approach works best in a single (imputed) data set.
+Indeed, we found that no approach consistently performed best across all imputed
+data sets. Still, it might be sufficient to only select a subset of the imputed
+data sets for this purpose. In our application, the results were sufficiently 
+clear for 20 imputed data sets.
+* For our application, starting values provided by Q-learning performed best. The
+illustrations on the website of *Dynamic Treatment Regimes* use the zero vector
+as starting value.
+* While combining all optimization approaches is in principle a viable strategy,
+computational load is an important limiting factor. This is even more so when
+one would use a resampling method such as the bootstrap or cross-validation to
+correct for possible overoptimism in the estimated value of the estimated
+regime.
+
+# Details on the Value Search Estimator
+
+The value search estimator estimates the optimal treatment regime within a 
+restricted class of treatment regimes. This is done by maximizing an estimator
+for the value of a fixed regime, $\hat{\nu}(d)$. In this document, the AIPW 
+estimator was used for this purpose. This estimator requires the specification 
+of a propensity score model and an outcome regression model:
+
+* **Propensity score model**. Since treatment assignment was randomized, we 
+estimate the propensity scores by the empirical proportions. This corresponds to
+a logistic regression model with only an intercept.
+* **Outcome regression model**. A linear regression model with `sex`, `past_MDD`,
+`current_MDD`, `phealth`, `age`, `madrs`, `sas`, `famfun`, `cesd`, `vas` as main
+effects and interactions terms between treatment and `sex`, `age`, `famfun`,
+`cesd`, and `past_MDD`.
+
+The restricted class of treatment regimes considered in the value search
+estimator are all linear treatment regimes with the following covariates: `sex`,
+`age`, `famfun`, `cesd`, and `past_MDD`.
+
+
+

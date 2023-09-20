@@ -45,54 +45,6 @@ if cesd2 ^= . then
 	end;
 run;
 
-/* Update 2: add quadratic effect of age. We consider a moderate and strong quadratic effect.*/ 
-data final_update2_moderate;
-set final_update1;
-if cesd2 ^= . then
-	do; 
-		cesd2 = cesd2 + 0.01 * (age - 25)**2;
-		/* We don't want to change values outside of the range of CESD. If this would happen, we change the values to the boundary value. */ 
-		if -100 < cesd2 < 0 then cesd2 = 0;
-		if cesd2 > 60 then cesd2 = 60;
-	end;
-run;
-
-data final_update2_strong;
-set final_update1;
-if cesd2 ^= . then
-	do; 
-		cesd2 = cesd2 + 0.02 * (age - 25)**2;
-		/* We don't want to change values outside of the range of CESD. If this would happen, we change the values to the boundary value. */ 
-		if -100 < cesd2 < 0 then cesd2 = 0;
-		if cesd2 > 60 then cesd2 = 60;
-	end;
-run;
-
-
-/* Update 3: add quadratic effect of baseline cesd. We again consider a moderate and strong quadratic effect. */
-data final_update3_moderate;
-set final_update1;
-if cesd2 ^= . then
-	do; 
-		cesd2 = cesd2 + 0.01 * (cesd - 30)**2;
-		/* We don't want to change values outside of the range of CESD. If this would happen, we change the values to the boundary value. */ 
-		if -100 < cesd2 < 0 then cesd2 = 0;
-		if cesd2 > 60 then cesd2 = 60;
-	end;
-run;
-
-data final_update3_strong;
-set final_update1;
-if cesd2 ^= . then
-	do; 
-		cesd2 = cesd2 + 0.03 * (cesd - 30)**2;
-		/* We don't want to change values outside of the range of CESD. If this would happen, we change the values to the boundary value. */ 
-		if -100 < cesd2 < 0 then cesd2 = 0;
-		if cesd2 > 60 then cesd2 = 60;
-	end;
-run;
-
-
 /* Set libref to directory in which to save the artifically updated data sets.*/
 libname out "&output_directory";
 
@@ -103,26 +55,3 @@ FORMAT _all_;
 INFORMAT _all_;
 run;
 
-data out.final_updated2_moderate;
-set final_update2_moderate;
-FORMAT _all_;
-INFORMAT _all_;
-run;
-
-data out.final_updated2_strong;
-set final_update2_strong;
-FORMAT _all_;
-INFORMAT _all_;
-run;
-
-data out.final_updated3_moderate;
-set final_update3_moderate;
-FORMAT _all_;
-INFORMAT _all_;
-run;
-
-data out.final_updated3_strong;
-set final_update3_strong;
-FORMAT _all_;
-INFORMAT _all_;
-run;
