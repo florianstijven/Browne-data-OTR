@@ -89,24 +89,18 @@ In this document, we justify the choices to add additional effects of covariates
 on the outcomes in the original Browne data. We only consider CESD at 6 months as
 outcome. These additional effects are artificially added to illustrate some
 ideas that cannot be illustrated with the original data because these
-(interaction) effects are not present there. We consider 2 artificial data
-sets.
+(interaction) effects are not present there. We consider the following artificial data
+set.
 
-1. We add a treatment-interaction effect for past major depressive disorder
+* We add a treatment-interaction effect for past major depressive disorder
 (MDD) (`past_MDD`) and baseline CESD (`cesd`) for their effect on CESD at 6
 months (`cesd2`). So, these two baseline covariates are artificially turned into
 treatment effect modifiers.
-2. In addition to the changes in the first point, we add a quadratic effect main
-effect for age. So, the outcome regression model that we have used before will
-be misspecified. We consider two strengths for this quadratic effect.
-3. In addition to the changes in the first point, we add a quadratic main effect 
-for baseline CESD. This scenario differs from the second in that baseline CESD
-is an important effect modifier. We again consider two strengths. 
 
 We first give some results and plots for the original data where we do an
 available case analysis to deal with the missing data. This provides a reference
 to compare the "updated" data sets with. The goal is to change the original data
-in such a way that the modified data are still plausible. 
+in such a way that the artificial data are still plausible. 
 
 ```{r}
 # Define formula for two regression models that will be used further on.
@@ -149,22 +143,10 @@ original_data %>%
   xlab("Baseline CESD")
 ```
 
-We next plot the change score against age. As before, a smooth curve is added
-together with a 95% confidence interval.
-
-```{r}
-original_data %>%
-  ggplot(aes(x = age, y = change_cesd)) +
-  geom_point() + 
-  geom_smooth() +
-  ylab("Change in CESD (baseline - 6 months)") +
-  xlab("Age")
-```
-
 
 # Update 1
 
-The first update involves the introduction of additional treatment effect
+The (first) update involves the introduction of additional treatment effect
 heterogeneity. The modification of the outcome variable is as follows,
 $$\tilde{\texttt{cesd2}} = \texttt{cesd2} - (0.30 \cdot (\texttt{cesd} - 40) - 6 \cdot \texttt{past_MDD}) \cdot I(\texttt{group} = 1) + 0.20 \cdot (\texttt{cesd} - 40) + 4 \cdot \texttt{past_MDD}$$
 where a tilde indicates the updated value and group $1$ corresponds to
@@ -215,178 +197,5 @@ data_update1 %>%
   geom_smooth(se = TRUE) +
   ylab("Change in CESD (baseline - 6 months)") +
   xlab("Baseline CESD")
-```
-
-The next plot is very similar to the corresponding plot for the original data. 
-This is expected as we did not change the effect of age.
-
-```{r}
-data_update1 %>%
-  ggplot(aes(x = age, y = change_cesd)) +
-  geom_point() + 
-  geom_smooth() +
-  ylab("Change in CESD (baseline - 6 months)") +
-  xlab("Age")
-```
-
-
-
-# Update 2
-
-The second update involves the introduction of a quadratic main effect of age
-that leads to our outcome model being misspecified. The modification of the
-outcome variable is as follows for a moderate and strong quadratic effect, 
-respectively,
-$$\tilde{\texttt{cesd2}} = \texttt{cesd2} + 0.01 \cdot (\texttt{age} - 25)^2$$
-and 
-$$\tilde{\texttt{cesd2}} = \texttt{cesd2} + 0.02 \cdot (\texttt{age} - 25)^2$$
-where a tilde indicates the updated value and $\texttt{cesd2}$ is the value from
-the **first** update.
-
-
-This is a quadratic main effect of age. Patients will thus do worse on average
-if they are further away from 25 years old. Since most patients are older than
-25, this basically means that younger patients will do better.
-
-```{r}
-data_update2 = bind_rows(
-  data_update1 %>%
-    mutate(
-      cesd2 = cesd2 + 0.01 * (age - 25) ** 2,
-      change_cesd = cesd - cesd2
-    ) %>%
-    mutate(age_effect = "moderate"),
-  data_update1 %>%
-    mutate(
-      cesd2 = cesd2 + 0.02 * (age - 25) ** 2,
-      change_cesd = cesd - cesd2
-    ) %>%
-    mutate(age_effect = "strong")
-)
-# Update formula for regression model
-per_arm_formula2 = update(per_arm_formula, ~ . + I(age ** 2))
-```
-
-
-We next repeat the same regression models and plots as before. Beside treatment
-effect heterogeneity, there is now evidence for a quadratic main effect of age 
-(as shown in the last plot). 
-
-```{r}
-lm_fit2_tbl = data_update2 %>%
-  group_by(age_effect) %>%
-  summarize(lm_fit = list(lm(per_arm_formula2, data = pick(everything()))))
-lm_fit2_list = lm_fit2_tbl$lm_fit
-names(lm_fit2_list) = lm_fit2_tbl$age_effect
-modelsummary::msummary(
-  lm_fit2_list,
-  estimate = "{estimate} ({std.error}){stars}",
-  statistic = NULL,
-  notes = "+, p < 0.1; *, p < 0.05; **, p < 0.01; ***, p < 0.001.",
-  gof_map = c("r.squared", "adj.r.squared")
-)
-```
-
-
-```{r}
-data_update2 %>%
-  ggplot(aes(x = cesd, y = change_cesd, color = group, linetype = past_MDD)) +
-  geom_point(alpha = 0.4) + 
-  geom_smooth(se = TRUE) +
-  ylab("Change in CESD (baseline - 6 months)") +
-  xlab("Baseline CESD") +
-  facet_wrap("age_effect")
-```
-
-```{r}
-data_update2 %>%
-  ggplot(aes(x = age, y = change_cesd)) +
-  geom_point() + 
-  geom_smooth() +
-  ylab("Change in CESD (baseline - 6 months)") +
-  xlab("Age") +
-  facet_wrap("age_effect")
-```
-
-
-# Update 3
-
-The third update involves the introduction of a quadratic main effect for baseline CESD
-that leads to our outcome model being misspecified. The modification of the
-outcome variable is as follows for a moderate and strong quadratic effect, 
-respectively,
-$$\tilde{\texttt{cesd2}} = \texttt{cesd2} + 0.01 \cdot (\texttt{cesd} - 30)^2$$
-and 
-$$\tilde{\texttt{cesd2}} = \texttt{cesd2} + 0.03 \cdot (\texttt{cesd} - 30)^2$$
-where a tilde indicates the updated value and $\texttt{cesd2}$ is the value from
-the **first** update.
-
-
-This is a quadratic main effect of baseline CESD. Patients will thus do worse on
-average if they are further away from the baseline CESD of 30. This is not very
-realistic, but whether this effect is plausible in this particular setting is of
-little interest. 
-
-```{r}
-data_update3 = bind_rows(
-  data_update1 %>%
-    mutate(
-      cesd2 = cesd2 + 0.01 * (cesd - 30) ** 2,
-      change_cesd = cesd - cesd2
-    ) %>%
-    mutate(cesd_effect = "moderate"),
-  data_update1 %>%
-    mutate(
-      cesd2 = cesd2 + 0.03 * (cesd - 30) ** 2,
-      change_cesd = cesd - cesd2
-    ) %>%
-    mutate(cesd_effect = "strong")
-)
-# Update formula for regression model
-per_arm_formula3 = update(per_arm_formula, ~ . + I(cesd ** 2))
-```
-
-
-We next repeat the same regression models and plots as before. Beside treatment
-effect heterogeneity, there is now evidence for a quadratic main effect of cesd
-(as shown in the first plot). Because we also want to compare the differential
-effect of misspecification of the main effect of a covariate that is an effect
-modifiers versus that is not an effect modifier, we also try to get the
-corresponding R-squared values to match.
-
-```{r}
-lm_fit3_tbl = data_update3 %>%
-  group_by(cesd_effect) %>%
-  summarize(lm_fit = list(lm(per_arm_formula3, data = pick(everything()))))
-lm_fit3_list = lm_fit3_tbl$lm_fit
-names(lm_fit3_list) = lm_fit3_tbl$age_effect
-modelsummary::msummary(
-  lm_fit3_list,
-  estimate = "{estimate} ({std.error}){stars}",
-  statistic = NULL,
-  notes = "+, p < 0.1; *, p < 0.05; **, p < 0.01; ***, p < 0.001.",
-  gof_map = c("r.squared", "adj.r.squared")
-)
-```
-
-
-```{r}
-data_update3 %>%
-  ggplot(aes(x = cesd, y = change_cesd, color = group, linetype = past_MDD)) +
-  geom_point(alpha = 0.4) + 
-  geom_smooth(se = TRUE) +
-  ylab("Change in CESD (baseline - 6 months)") +
-  xlab("Baseline CESD") +
-  facet_wrap("cesd_effect")
-```
-
-```{r}
-data_update3 %>%
-  ggplot(aes(x = age, y = change_cesd)) +
-  geom_point() + 
-  geom_smooth() +
-  ylab("Change in CESD (baseline - 6 months)") +
-  xlab("Age") +
-  facet_wrap("cesd_effect")
 ```
 
