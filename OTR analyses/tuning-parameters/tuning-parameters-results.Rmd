@@ -3,8 +3,8 @@ title: "Evaluation of Tuning Parameters in the Genetic Algorithm"
 author: "Florian Stijven"
 date: "`r Sys.Date()`"
 output:
-  html_document: default
   word_document: default
+  html_document: default
 ---
 
 ```{r, echo=FALSE, message=FALSE, warning=FALSE}
@@ -12,6 +12,12 @@ knitr::opts_chunk$set(echo = FALSE,
                       message = FALSE,
                       warning = FALSE,
                       fig.width = 10)
+# Size parameter for saving plots to disk.
+single_width = 9
+double_width = 14
+single_height = 8.2
+double_height = 12.8
+res = 600
 # Load packages
 library(DynTxRegime)
 library(tidyverse)
@@ -380,8 +386,44 @@ OTR_tuning_parameters_tbl %>%
   scale_shape_discrete(name = "Population Size") +
   xlab("Imputation Number") + 
   ylab("Estimated Value")
-  
+ggsave(filename = "figures-manuscript/supplementary-information/tuning-parameters-all-outcomes.png",
+       device = "png",
+       width = double_width,
+       height = double_height,
+       units = "cm",
+       dpi = res)
 ```
+
+```{r, results='hide'}
+# Reproduce same figure as above, but now only for CESD. This Figures appears in
+# the main text of the manuscript.
+OTR_tuning_parameters_tbl %>%
+  mutate(multi_run = ifelse(seed == 1, 1L,
+                            ifelse(seed %in% 11:15, 5L, 20L))) %>%
+  mutate(multi_run = factor(x = multi_run, levels = c(1L, 5L, 20L))) %>%
+  group_by(outcome, X_Imputation_, population_size, multi_run) %>%
+  slice_max(order_by = estimated_value, n = 1) %>%
+  left_join(tibble(
+    outcome = c("cesd", "famfun", "madrs", "sas", "vas"),
+    range = c(60, 3, 60, 4, 100)
+  )) %>%
+  filter(outcome == "cesd") %>%
+  ggplot(aes(x = X_Imputation_, y = estimated_value, color = as.factor(multi_run),
+             shape = as.factor(population_size))) +
+  geom_point() +
+  geom_line() +
+  scale_color_discrete(name = "Number of Runs") +
+  scale_shape_discrete(name = "Population Size") +
+  xlab("Imputation Number") + 
+  ylab("Estimated Value")
+ggsave(filename = "figures-manuscript/main-text/tuning-parameters-cesd.png",
+       device = "png",
+       width = double_width,
+       height = double_height,
+       units = "cm",
+       dpi = res)
+```
+
 
 The above figure leads to important insights.
 
@@ -424,6 +466,12 @@ OTR_tuning_parameters_tbl %>%
   ylab("Estimated Value") +
   guides(colour = guide_legend(order = 2),
          shape = guide_legend(order = 1))
+ggsave(filename = "figures-manuscript/supplementary-information/tuning-parameters-all-outcomes-filtered.png",
+       device = "png",
+       width = double_width,
+       height = double_height,
+       units = "cm",
+       dpi = res)
 ```
 
 In the following table, we summarize the proportion of times each optimization
@@ -536,6 +584,12 @@ OTR_starting_values_tbl %>%
   scale_color_discrete(name = "Type of Starting Values") +
   xlab("Imputation Number") +
   ylab("Estimated Value")
+ggsave(filename = "figures-manuscript/supplementary-information/starting-values-all-outcomes.png",
+       device = "png",
+       width = double_width,
+       height = double_height,
+       units = "cm",
+       dpi = res)
 ```
 
 The above plot indicates that (for the optimization approach considered)
