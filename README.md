@@ -88,8 +88,19 @@ The `OTR analyses/` directory also contains the following helper files:
 `OTR_estimator.R`, `reformat_data.R`, `swv_ML.R`, `swv_OLS.R`, `value_AIPW.R`,
 `value_AIPW_se.R`, `value_AIPW_swv.R`. These files are sources in other R-scripts
 and Rmarkdown files. We wrote the former two files to remove redundancies in our code.
-The other helper files were downloaded from the [website](https://laber-labs.com/dtr-book/booktoc.html)! accompanying the book
+The other helper files were downloaded from the [website](https://laber-labs.com/dtr-book/booktoc.html) accompanying the book
 *Dynamic Treatment Regimes: Statistical Methods for Precision Medicine*.
   
+  
+# Processing of Results
 
+The `OTR estimation/final-summary.Rmd` file contains the main code that is used
+for processing the estimated optimal treatment regimes. This file contains a
+very comprehensive analysis of the estimated treatment regimes in the original
+Browne data. The html and word documents output by this Rmarkdown file are also
+included under the same name.
+
+While the Rmarkdown files generate independent reports, they also contain code
+that saves the figures presented in the paper into the `figures-manuscript/`
+folder.
 
