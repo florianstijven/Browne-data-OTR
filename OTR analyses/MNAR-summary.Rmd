@@ -1,0 +1,695 @@
+---
+title: "MNAR Sensitivity Analyses"
+author: "Florian Stijven"
+date: "`r Sys.Date()`"
+output: bookdown::html_document2
+editor_options: 
+  markdown: 
+    wrap: 72
+---
+
+```{r, echo=FALSE, message=FALSE, warning=FALSE}
+knitr::opts_chunk$set(echo = FALSE,
+                      message = FALSE,
+                      warning = FALSE,
+                      fig.width = 10)
+# Size parameter for saving plots to disk.
+single_width = 9
+double_width = 14
+single_height = 8.2
+double_height = 12.8
+res = 600
+# Load packages
+library(DynTxRegime)
+library(tidyverse)
+library(sas7bdat)
+# Specify file locations.
+OTR_q_file = "OTR analyses/OTR-estimation/OTR_q_results_global_shift.rds"
+imputed_data_file = "Multiple Imputation/MNAR-sensitivity-analysis/final_mi_global.sas7bdat"
+imputed_data_file_updated = "Multiple Imputation/MNAR-sensitivity-analysis/final_mi_global_updated1.sas7bdat"
+```
+
+```{r}
+# Function to standardize vector to unit norm.
+norm_vec = function(vec) {
+  # Normalize the vector
+  normed_vec = vec / sqrt(sum(vec * vec))
+  return(normed_vec)
+}
+```
+
+```{r}
+# Source file that contains functions to estimate the value of a given regime 
+# using the AIPW estimator, and the corresponding SE.
+source(file = "OTR analyses/value_AIPW.R")
+source(file = "OTR analyses/swv_ML.R")
+source(file = "OTR analyses/swv_OLS.R")
+source(file = "OTR analyses/value_AIPW_swv.R")
+source(file = "OTR analyses/value_AIPW_se.R")
+# Function to estimate the value of a regime based on the AIPW estimator. We 
+# need this additional function because the DynTxRegime package does not provide
+# function to estimate the value of regimes, estimated by Q-learning, with the
+# AIPW estimator. 
+value_regime_aipwe = function(regime, regime_allocation = optTx(regime)$optimalTx, se = TRUE) {
+  # formula for the outcome regression model.
+  OR_formula = regime@analysis@outcome@modelObj@model
+  # Propensity score model.
+  moPS <- modelObj::buildModelObj(
+    model = ~ 1,
+    solver.method = 'glm',
+    solver.args = list(family = 'binomial'),
+    predict.method = 'predict.glm',
+    predict.args = list(type = 'response')
+  )
+  # Outcome regression model.
+  moOR <- modelObj::buildModelObj(
+    model = OR_formula,
+    solver.method = 'lm',
+    predict.method = 'predict.lm'
+  )
+  # The imputed data set is extracted from the qlearning object.
+  data = regime@analysis@outcome@fitObj[["model"]]
+  # The outcome is extracted.
+  outcome = data$YinternalY
+  data = data[, -1]
+  # Return the estimated value.
+  if (se) {
+    value = value_AIPW_se(
+      moOR = moOR,
+      moPS = moPS,
+      data = data,
+      y = outcome,
+      txName = "group_int",
+      regime = regime_allocation
+    )
+  }
+  else {
+    value = value_AIPW(
+      moOR = moOR,
+      moPS = moPS,
+      data = data,
+      y = outcome,
+      txName = "group_int",
+      regime = regime_allocation
+    )
+  }
+
+}
+```
+
+```{r setup, include=FALSE}
+# Load tibble that contains the estimated treatment regimes for Q-learning.
+OTR_q_tbl = readRDS(file = OTR_q_file) %>%
+  ungroup()
+OTR_q_tbl = OTR_q_tbl %>%
+  mutate(
+    estimated_value = sapply(X = regime,
+                             FUN = function(x) value_regime_aipwe(x, se = FALSE)$valueHat),
+    regime_parameters = lapply(
+      X = regime,
+      FUN = function(x)
+        coef(x)$outcome$Combined[c(
+          "group_int",
+          "sexFemale:group_int",
+          "age:group_int",
+          "famfun:group_int",
+          "cesd:group_int",
+          "past_MDDYes:group_int"
+        )]
+    ),
+    optTx = lapply(
+    X = regime, 
+    FUN = function(x) optTx(x)[[1]]
+  )
+  ) %>%
+  mutate(
+    constant = t(as.data.frame(regime_parameters))[, 1],
+    sex = t(as.data.frame(regime_parameters))[, 2],
+    age = t(as.data.frame(regime_parameters))[, 3],
+    famfun = t(as.data.frame(regime_parameters))[, 4],
+    cesd = t(as.data.frame(regime_parameters))[, 5],
+    past_MDD = t(as.data.frame(regime_parameters))[, 6]
+  ) %>%
+  select(-regime_parameters, -regime)
+```
+
+```{r,results='hide'}
+# The imputed data sets are loaded and put into an easy-to-use format. These
+# data are used further on to compute some summary measures. Load sas data sets
+# into R.
+imputed_data_original = read.sas7bdat(imputed_data_file)
+imputed_data_updated = read.sas7bdat(imputed_data_file_updated)
+# Join the sets of imputed data sets while adding a variable that indicates the
+# type of data set: original or updated (which means we artifically increased
+# the interactions).
+imputed_data = bind_rows(
+  imputed_data_original %>%
+    mutate(data = "Original"),
+  imputed_data_updated %>%
+    mutate(data = "Updated1")
+)
+
+# Drop the third treatment arm.
+imputed_data = imputed_data %>%
+  dplyr::filter(group != 3)
+# Recode the group, sex, and disorder variables into a factor variables.
+imputed_data = imputed_data %>%
+  mutate(group = factor(
+    group,
+    labels = c("Sertraline alone", "Sertraline and IPT"),
+    levels = 1:2
+  ),
+  sex = factor(
+    sex,
+    labels = c("Male", "Female"),
+    levels = 1:2
+  ),
+  disorder = factor(
+    disorder,
+    labels = c("Never", "Past", "Current", "Current and Past"),
+    levels = 1:4
+  ))
+# Recode disorder variable into two binary variables.
+imputed_data = imputed_data %>%
+  mutate(
+    past_MDD = fct_collapse(
+      .f = disorder,
+      "No" = c("Never", "Current"),
+      "Yes" = c("Past", "Current and Past")
+    ),
+    current_MDD = fct_collapse(
+      .f = disorder,
+      "No" = c("Never", "Past"),
+      "Yes" = c("Current", "Current and Past")
+    )
+  )
+imputed_data %>% head()
+# Data are transformed from wide to long format. In the long data set, there is
+# one row for each post-randomization outcome.
+imputed_data_long = imputed_data %>%
+  pivot_longer(
+    cols = 14:28,
+    names_to = c("outcome", "time"),
+    values_to = "value",
+    names_sep = -1
+  ) %>%
+  mutate(time = fct_recode(
+    .f = time,
+    "6 months" = "2",
+    "1 year" = "3",
+    "2 years" = "4"
+  ))
+# Change variable names to improve consistency.
+imputed_data_long = imputed_data_long %>%
+  dplyr::rename(madrs = madrsv1, sas = sasb) %>%
+  mutate(outcome = ifelse(outcome == "madrst", "madrs", outcome),
+         outcome = ifelse(outcome == "sasb", "sas", outcome))
+# In addition to the observed scale at each time point, we add the change from 
+# baseline as an additional outcome. 
+imputed_data_long = imputed_data_long %>%
+  mutate(change_score = 
+           ifelse(outcome == "madrs", madrs - value, 0) +
+           ifelse(outcome == "sas", sas - value, 0) +
+           ifelse(outcome == "famfun", famfun - value, 0) +
+           ifelse(outcome == "cesd", cesd - value, 0) +
+           ifelse(outcome == "vas", value - vas, 0),
+         # We also add a numeric variable for the treatment.
+         group_int = as.integer(group) - 1)
+
+# Print group means across imputed data sets as a check to the processed data
+# integrity.
+imputed_data_long %>%
+  group_by(outcome, time, group, group_int, shift) %>%
+  summarise(mean_score = mean(change_score))
+```
+
+```{r}
+# Identify patient id's with a missing cesd outcome at 6 months. 
+# Load original data set.
+original_data = read.sas7bdat(file = "data preparation and exploration/final.sas7bdat")
+# Only retain treatment groups that were used in all previous analyses. In
+# addition, we only need the id and cesd2 variables.
+original_data = original_data %>%
+  filter(group != 3) %>%
+  select(id, cesd2)
+# Get the id's of patients with a missing cesd2. 
+missing_cesd2_ids = original_data %>%
+  filter(is.na(cesd2)) %>%
+  select(id) %>%
+  # unlist such that a numeric vector is returned.
+  unlist()
+
+# Compute the mean difference in imputed cesd values between the MAR imputations
+# and the shifted imputations. This can replace the "shift" variable.
+shift_to_cesd_scale_tbl = imputed_data_long %>%
+  filter(outcome == "cesd", id %in% missing_cesd2_ids,
+         time == "6 months") %>% # We further only look at cesd as outcome.
+  select(c("X_Imputation_", "id", "value", "data", "shift")) %>%
+  left_join(
+    imputed_data_long %>%
+      filter(
+        outcome == "cesd",
+        id %in% missing_cesd2_ids,
+        time == "6 months",
+        shift == 0
+      ) %>%
+      select(c("X_Imputation_", "id", "value", "data")),
+    by = c("X_Imputation_", "data", "id"),
+    suffix = c("_shifted", "_original")
+  ) %>%
+  # Compute average shift on the cesd scale for each shift, and data type
+  # combination.
+  group_by(shift, data) %>%
+  summarise(shift_cesd = mean(value_shifted - value_original))
+```
+
+```{r, results='hide'}
+# The results for Q-learning are put into OTR_results. For now, we do not
+# consider other methods. However, this code can be easily adapted to allow for
+# the results of other methods, i.e., value search estimation.
+OTR_results = bind_rows(
+  OTR_q_tbl %>%
+    mutate(OTR_method = "Q-learning")
+)
+# The original tibbles are removed to clear up space. 
+# rm("OTR_value_search_tbl", "OTR_q_tbl")
+head(OTR_results)
+```
+
+```{r}
+# We again load the tibble that contains the estimated regimes by Q-learning.
+# This helps us to applying the aggregated regimes to the imputed data sets
+# without having to write much additional code.
+OTR_q_tbl = readRDS(file = OTR_q_file) %>%
+  ungroup()
+```
+
+```{r}
+# Function that implement the circular mean.
+circular_mean = function(x) {
+  # Get column names from x. These are used further on.
+  colnames_x = colnames(x)
+  # Ensure that the rows have a unit norm. This should be satisfied beforehand.
+  x = t(apply(as.matrix(x), MARGIN = 1, FUN = norm_vec))
+  
+  # Compute the columnwise mean.
+  mean_vector = apply(x, MARGIN = 2, FUN = mean)
+  # Convert the vector of means to a vector on the unit circle. This vector is
+  # put into a row of a data frame.
+  circular_mean_row = as.data.frame(t(data.frame(norm_vec(mean_vector))))
+  # Rename columns according to the original column names of x.
+  colnames(circular_mean_row) = colnames_x
+  return(circular_mean_row)
+}
+```
+
+```{r}
+# Aggregate estimated treatment regimes using the circular mean.
+circular_mean_aggregated = OTR_results %>%
+  group_by(data, OTR_method, shift) %>%
+  reframe(
+    data.frame(constant, sex, age, famfun, cesd, past_MDD) %>%
+      circular_mean(),
+    param_vector = data.frame(constant, sex, age, famfun, cesd, past_MDD) %>%
+      circular_mean() %>%
+      as.numeric() %>%
+      list()
+  ) 
+```
+
+```{r}
+# Apply Rubin's rules directly for Q-learning.
+rubin_rules_aggregated = OTR_results %>%
+  filter(OTR_method == "Q-learning") %>%
+  group_by(data, OTR_method, shift) %>%
+  reframe(data.frame(constant, sex, age, famfun, cesd, past_MDD) %>%
+            colMeans() %>%
+            data.frame() %>%
+            t() %>%
+            as.data.frame(),
+          param_vector = data.frame(constant, sex, age, famfun, cesd, past_MDD) %>%
+            colMeans() %>%
+            as.numeric() %>%
+            list()) 
+```
+
+```{r}
+# Include the one-size-fits-all regimes. 
+trivial_rules_tbl = expand_grid(
+  data = c("Original", "Updated1"),
+  OTR_method = c("One-Size-Fits-All (0)", "One-Size-Fits-All (1)")
+)
+trivial_rules_tbl = trivial_rules_tbl %>%
+  left_join(tibble(
+    OTR_method = c("One-Size-Fits-All (0)", "One-Size-Fits-All (1)"),
+    regime_function = list(function(x)
+      return(rep(0L, nrow(
+        x
+      ))),
+      function(x)
+        return(rep(1L, nrow(
+          x
+        ))))
+  )) %>%
+  cross_join(tibble(shift = unique(OTR_results$shift)))
+```
+
+```{r}
+# Combine different results of different aggregation methods into a single
+# tibble. 
+aggregated_rules_tbl = bind_rows(
+  circular_mean_aggregated %>%
+    mutate(aggregation = "Circular Mean"),
+  rubin_rules_aggregated %>%
+    mutate(aggregation = "Rubin's Rules")
+)
+```
+
+```{r, cache=TRUE}
+# Add the aggregated treatment regimes as a function to the tibble. In a second
+# step, the majority vote regimes are added.
+aggregated_rules_tbl = aggregated_rules_tbl %>%
+  mutate(regime_function = lapply(
+    X = param_vector,
+    FUN = function(param_vector) {
+      function(covariates_matrix) {
+        allocation = covariates_matrix %*% param_vector > 0
+        return(as.integer(allocation))
+      }
+    }
+  ))
+aggregated_rules_tbl = bind_rows(
+  aggregated_rules_tbl,
+  trivial_rules_tbl %>%
+    mutate(aggregation = "One-Size-Fits-All")
+)
+
+
+# Apply aggregated regimes to the imputed data sets.
+cont_formula = formula(~sex + age + famfun + cesd + past_MDD)
+estimated_value_tbl = OTR_q_tbl %>%
+  left_join(
+    aggregated_rules_tbl %>%
+      select(data, regime_function, OTR_method, aggregation, shift)
+  ) %>%
+  mutate(allocation = purrr::map2(
+    .x = regime,
+    .y = regime_function,
+    .f = function(regime, regime_function) {
+      # Extract imputed data set
+      data = regime@analysis@outcome@fitObj[["model"]]
+      # Extract columns we need in the correct order.
+      data = data[, c("sex", "age", "famfun", "cesd", "past_MDD")]
+      data = model.matrix(cont_formula, data)
+      regime_function(data)
+    }
+  )) %>%
+  mutate(estimated_value_list = purrr::map2(
+    .x = regime,
+    .y = allocation,
+    .f = function(regime, allocation) {
+      value_regime_aipwe(regime, allocation)
+    }
+  )) %>%
+  mutate(
+    estimated_value = purrr::map_dbl(estimated_value_list, "valueHat"),
+    estimated_value_se = purrr::map_dbl(estimated_value_list, "sigmaHat")
+  ) %>%
+  select(-regime,-regime_function,-allocation,-estimated_value_list)
+```
+
+```{r}
+# Add shifts on the cesd scale that were computed before. 
+estimated_value_tbl = estimated_value_tbl %>%
+  left_join(shift_to_cesd_scale_tbl,
+            by = c("shift", "data"))
+```
+
+# Introduction
+
+In this report, we assess the optimal estimated treatment regimes under
+a set of MNAR scenarios with a *global shift*: imputed values are
+shifted downwards or upwards by a constant amount. We focus on the CESD
+outcome at 6 months.
+
+Because the CESD scale is confined to the $[0, 60]$ interval, we have to take
+these bounds into account when implementing global shift scenarios. In the main
+analyses - and for the MNAR scenarios as well - the CESD outcome is transformed
+to the real line before imputing, using the following transformation:
+
+$$\tilde{\texttt{cesd}} = logit(\frac{\texttt{cesd} + 1}{62})$$
+where $\tilde{\texttt{cesd}}$ is the transformed value.
+
+Afterwards, the imputed values are back-transformed to their original scale.
+This ensures that (practically) all imputed values are in the $[0, 60]$
+interval. In practice, the imputed values are in the $(-1, 61)$ interval. Imputed 
+values in $(-1, 0)$ and $(60, 61)$ are converted to $0$ and $60$, respectively. 
+
+To ensure that imputations in the MNAR scenarios still respect the $[0, 60]$
+interval, the global shift is implemented on the $\tilde{\texttt{cesd}}$ scale.
+Consequently, it is difficult to appreciate the size of the global shift.
+Therefore, for each
+shift on the $\tilde{\texttt{cesd}}$ scale, we also compute the average difference between the imputed values under MAR and the MNAR scenario. Specifically, this is done by
+computing
+$$\Delta_{MNAR} = E(\texttt{cesd}_{MNAR}) - E(\texttt{cesd}_{MAR})$$
+where the expectations are with respect to the patients with a missing CESD outcome
+at 6 months, and $\texttt{cesd}_{MNAR}$ and $\texttt{cesd}_{MAR}$ are the imputed 
+values under MNAR and MAR, respectively.
+
+In this report, all regimes are estimated through Q-learning. Further, all
+analysis choices are the same as for the main analysis under MAR unless
+mentioned otherwise. We further only present results with the circular mean as
+aggregation method. We also consider both the original Browne data and the
+Browne data where we artificially induced strong interaction effects; these latter data
+are further referred to as the "updated" Browne data.
+
+# Estimated Values
+
+```{r}
+# Apply Rubin's rules
+pooled_inference_aggregated_rules_tbl = estimated_value_tbl %>%
+  group_by(data, OTR_method, aggregation, shift, shift_cesd) %>%
+  summarise(
+    pooled_estimated_value = mean(estimated_value),
+    pooled_within_variance = mean(estimated_value_se ** 2),
+    pooled_between_variance = var(estimated_value)
+  ) %>%
+  ungroup() %>%
+  mutate(pooled_total_variance = pooled_within_variance + (1 + (1 / 200)) * pooled_between_variance)
+```
+
+In this section, we look at the estimated values of the aggregated regimes
+across the MNAR scenarios. We follow the same approach as in the main analysis
+to obtain the aggregated regimes and the corresponding estimated values. Figure
+\@ref(fig:pooled-estimates) presents these estimated values along with 95% CIs
+(+/- 1.96 times the pooled standard error). In addition to the regimes estimated
+by Q-learning, this plot also contains the estimated values of the trivial
+regimes. 
+
+* For both the original and the updated Browne data, the difference
+between the one-size-fits-all regimes increases with the global shift:
+  * A large positive shift increases the difference. 
+  * A large negative shift decreases the difference.
+
+* The difference between the aggregated regime and the best one-size-fits-all 
+regime is relatively insensitive to a global shift.
+  * For the original Browne data, the estimated difference in values of the         aggregated
+  and best one-size-fits-all regime depends on the global shift only for
+  relatively large positive shifts. In addition, the confidence interval for the
+  value of the aggregated regime always contains the estimated value of the best
+  one-size-fits-all regime.
+  * For the updated Browne data, the estimated difference in values of the        aggregated
+  and best one-size-fits-all regime is practically independent of the global
+  shift. However, the length of the confidence intervals depends on the global
+  shift. Indeed, the lower limit of the confidence interval for the aggregated
+  regime approaches the estimated value of the best one-size-fits-all regime as
+  the global shift increases.
+
+```{r pooled-estimates, fig.cap="Pooled estimates for the value of the aggregated regimes together with 95% confidence intervals under various MNAR scenarios. The pooled estimates and confidence interval are obtained by applying Rubin's rules. The left-hand panel shows the results with the original Browne data and the right-hand panel shows the results with the updated Browne data."}
+pooled_inference_aggregated_rules_tbl %>%
+  filter(aggregation %in% c("Circular Mean", "One-Size-Fits-All")) %>%
+  ggplot(aes(x = shift_cesd, y = pooled_estimated_value, color = OTR_method)) +
+  geom_point(aes(fill = OTR_method), position = position_dodge(1.5)) +
+  geom_errorbar(
+    aes(
+      ymin = pooled_estimated_value - 1.96 * sqrt(pooled_total_variance),
+      ymax = pooled_estimated_value + 1.96 * sqrt(pooled_total_variance)
+    ),
+    height = 0.3,
+    position = position_dodge(1.5),
+  ) +
+  ylab("Pooled Estimated Value") +
+  xlab("Average Global Shift on the CESD scale") +
+  scale_color_discrete(name = "OTR method") +
+  scale_fill_discrete(name = "OTR method") +
+  facet_grid(~ data)
+```
+
+# Classification
+
+```{r}
+# Load original data set.
+original_data = read.sas7bdat(file = "data preparation and exploration/final.sas7bdat")
+# Only retain treatment groups that were used in all previous analyses. In
+# addition, we only select the id and variables used in the estimated treatment
+# regimes.
+original_data = original_data %>%
+  filter(group != 3) %>%
+  select(id, sex, age, disorder, cesd, famfun)
+# There are four missing values in the baseline FAMFUN variable.
+# summary(original_data)
+# Get the ideas for those four patients. 
+missing_famfun_ids = original_data %>%
+  filter(is.na(famfun)) %>%
+  select(id) %>%
+  unlist()
+```
+
+```{r}
+# Select the needed covariates from the first imputed data set. The four
+# subjects mentioned above are filtered.
+data_covariates = imputed_data %>%
+  filter(
+    X_Imputation_ == 1,!(id %in% missing_famfun_ids),
+    group != 3,
+    data == "Original",
+    shift == 0
+  ) %>%
+  # Extract columns we need in the correct order.
+  select(c("sex", "age", "famfun", "cesd", "past_MDD"))
+data_matrix = model.matrix(cont_formula, data_covariates)
+  
+
+classification_aggregated_rules_tbl = aggregated_rules_tbl %>%
+  # We do not need the trivial regimes.
+  filter(aggregation != "One-Size-Fits-All") %>%
+  select(data, regime_function, OTR_method, aggregation, shift) %>%
+  mutate(allocation = purrr::map(
+    .x = regime_function,
+    .f = function(f) {
+      f(data_matrix)
+    }
+  )) %>%
+  # Compute proportion allocated to treatment 1.
+  mutate(p = sapply(X = allocation,
+                    FUN = mean)) %>%
+  # Compute d.
+  mutate(d = pmin(p, 1 - p)) %>%
+  select(-regime_function)
+
+# Compute cell probabilities for the 2x2 table with classification in the
+# shifted scenario on the rows and classification in the MAR on the columns. We
+# further compute Cohen's Kappa.
+classification_aggregated_rules_tbl = classification_aggregated_rules_tbl %>%
+  left_join(
+    classification_aggregated_rules_tbl %>%
+      filter(shift == 0) %>%
+      select(data, aggregation, allocation),
+    by = c("data", "aggregation"),
+    suffix = c("_shifted", "_original")
+  ) %>%
+  rowwise(c("data", "OTR_method", "shift", "aggregation", "p")) %>%
+  summarise(
+    p_11 = sum(allocation_shifted * allocation_original) / length(allocation_shifted),
+    p_00 = sum((1 - allocation_shifted) * (1 - allocation_original)) / length(allocation_shifted),
+    p_10 = sum(allocation_shifted * (1 - allocation_original)) / length(allocation_shifted),
+    p_01 = sum((1 - allocation_shifted) * allocation_original) / length(allocation_shifted)
+  ) %>%
+  mutate(
+    p_observed = p_11 + p_00,
+    p_expected = (p_11 + p_10) * (p_11 + p_01) + (p_00 + p_01) * (p_00 + p_10),
+    cohen_kappa = (p_observed - p_expected) / (1 - p_expected),
+  )
+```
+
+```{r}
+# Add shifts on the cesd scale that were computed before. 
+classification_aggregated_rules_tbl = classification_aggregated_rules_tbl %>%
+  left_join(shift_to_cesd_scale_tbl,
+            by = c("shift", "data"))
+```
+
+In this section, we look at how the aggregated regimes classify patients across
+the MNAR scenarios. 
+
+In Figure \@ref(fig:proportion-zero), we plot the proportion of patients
+classified to *Sertraline* by the aggregated regimes under various MNAR
+scenarios. This proportion is clearly much more sensitive to MNAR for the original 
+Browne data than for the updated Browne data. 
+
+```{r proportion-zero, fig.cap="The proportion of patients that are classified to Sertraline by the aggregated regime, under various MNAR scenarios. The left-hand panel shows the results with the original Browne data and the right-hand panel shows the results with the updated Browne data." }
+classification_aggregated_rules_tbl %>%
+  filter(aggregation == "Circular Mean") %>%
+  ggplot(aes(x = shift_cesd, y = p)) + 
+  geom_point() +
+  geom_line() +
+  xlab("Average Global Shift on the CESD scale") +
+  ylab("Proportion Classified to Sertraline") +
+  facet_grid(~ data)
+```
+
+The marginal classification probabilities shown above do not directly reveal how
+much the regimes differ in their classifications across MNAR scenarios.
+Therefore, we also consider the 2x2 tables for comparing two regimes: (i) the
+regime classifications under MAR and (ii) the regime classifications under a
+particular MNAR scenario. This is illustrated in the following table.
+
+|                        | *Sertraline (MAR)* | *Sertraline + IPT (MAR)* |
+|------------------------|--------------|--------------------|
+| ***Sertraline (MNAR)***       | $p_{00}$              | $p_{01}$                    |
+| ***Sertraline + IPT (MNAR)*** | $p_{10}$              | $p_{11}$                    |
+
+These cell probabilities are plotted in Figure \@ref(fig:cell-probabilities)
+across the MNAR scenarios. Looking at the discordant cell probabilities
+($p_{01}$ and $p_{10}$) may give us some insights into the differences between
+the regimes under various MNAR scenarios. Indeed, we see that the
+classifications are much less sensitive to the MNAR scenarios in the updated
+Browne data than in the original Browne data. However, it is difficult to judge
+the relative importance of these differences. We therefore also plot the
+corresponding Cohen's kappas in Figure \@ref(fig:cohen-kappa). This corroborates
+our previous conclusions:
+
+* In the original Browne data, Cohen's kappa is very sensitive to the global shift.
+* In the updated Browne data, Cohen's kappa is relatively insensitive to 
+the global shift. 
+
+```{r cell-probabilities, fig.cap="Cell probabilities in the 2x2 tables mentioned in the text under various MNAR scenarios. The left-hand panel shows the results with the original Browne data and the right-hand panel shows the results with the updated Browne data."}
+classification_aggregated_rules_tbl %>%
+  filter(aggregation == "Circular Mean") %>%
+  pivot_longer(
+    cols = c("p_11", "p_00", "p_10", "p_01"),
+    names_to = "Cell",
+    values_to = "Cell Probability"
+  ) %>%
+  ggplot(aes(x = shift_cesd, y = `Cell Probability`, color = Cell)) +
+  geom_point() + 
+  geom_line() + 
+  xlab("Average Global Shift on the CESD scale") +
+  facet_grid(~ data)
+```
+
+
+
+```{r cohen-kappa, fig.cap="Cohen's kappa values in the 2x2 tables mentioned in the text under various MNAR scenarios. The left-hand panel shows the results with the original Browne data and the right-hand panel shows the results with the updated Browne data."}
+classification_aggregated_rules_tbl %>%
+  filter(aggregation == "Circular Mean") %>%
+  ggplot(aes(x = shift_cesd, y = cohen_kappa)) + 
+  geom_point() +
+  geom_line() +
+  xlab("Average Global Shift on the CESD scale") +
+  ylab("Cohen's Kappa") +
+  facet_grid(~ data)
+```
+
+# Conclusions
+
+In the original Browne data, the aggregated regime is sensitive to MNAR
+scenarios with a global shift in terms of the classification of patients.
+However, in all these MNAR scenarios, the estimated values of the aggregated
+regimes remain close to the estimated value of the best one-size-fits-all
+regime. 
+
+In the updated Browne data, the aggregated regime is relatively insensitive 
+to the MNAR scenarios with a global shift. Both the classification of patients 
+and the aggregated regime's value (relative to the trivial regimes) are not 
+severely changed under these MNAR scenarios.
