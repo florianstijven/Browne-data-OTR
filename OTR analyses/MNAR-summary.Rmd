@@ -425,6 +425,74 @@ estimated_value_tbl = estimated_value_tbl %>%
             by = c("shift", "data"))
 ```
 
+```{r}
+# Function to estimate treatment contrasts at the patient level.
+patient_contrasts_aipwe = function(data) {
+  # Fit propensity score model.
+  moPS = glm(formula = group_int ~ 1,
+             family = binomial(),
+             data = data)
+  # Fit outcome regression model.
+  moOR = lm(
+    formula = change_score ~ sex + past_MDD + current_MDD + phealth + age + madrs + sas +
+      famfun + cesd + vas + group_int + group_int:(sex + age +
+                                                     famfun + cesd + past_MDD),
+    data = data
+  )
+  # Estimate propensity scores.
+  ps = predict(moPS, type = "response")
+  # Estimate conditional mean outcome for treatment = 0.
+  mu_0 = predict(moOR,
+                 newdata = data %>%
+                   mutate(group_int = 0))
+  # Estimate conditional mean outcome for treatment = 1.
+  mu_1 = predict(moOR,
+                 newdata = data %>%
+                   mutate(group_int = 1))
+  # Estimate the contrast for each patient. We apply (2) from Zhang et al.
+  # (2012, doi/10.1002/sta.411)
+  A = data$group_int
+  Y = data$change_score
+  C_hat = ((A * Y) / ps) - ((1 - A) * Y) / (1 - ps) - ((A - ps) * mu_1) / ps - ((A - ps) * mu_0) / (1 - ps)
+  return(C_hat)
+}
+patient_contrasts_or = function(data) {
+  # Fit outcome regression model.
+  moOR = lm(
+    formula = change_score ~ sex + past_MDD + current_MDD + phealth + age + madrs + sas +
+      famfun + cesd + vas + group_int + group_int:(sex + age +
+                                                     famfun + cesd + past_MDD),
+    data = data
+  )
+  # Estimate conditional mean outcome for treatment = 0.
+  mu_0 = predict(moOR,
+                 newdata = data %>%
+                   mutate(group_int = 0))
+  # Estimate conditional mean outcome for treatment = 1.
+  mu_1 = predict(moOR,
+                 newdata = data %>%
+                   mutate(group_int = 1))
+
+  C_hat = mu_1 - mu_0
+  return(C_hat)
+}
+# Add column with estimated contrasts.
+imputed_data_long_contrasts = imputed_data_long %>%
+  filter(outcome == "cesd", time == "6 months") %>%
+  group_by(shift, X_Imputation_, data) %>%
+  mutate(C_hat = patient_contrasts_aipwe(pick(everything())),
+         C_hat_or = patient_contrasts_or(pick(everything()))) %>%
+  ungroup()
+# Pool the patient-level contrasts across the imputations.
+imputed_data_contrasts_pooled = imputed_data_long_contrasts %>%
+  group_by(shift, data, id) %>%
+  summarize(C_hat = mean(C_hat),
+            C_hat_or = mean(C_hat_or)) %>%
+  ungroup()
+```
+
+
+
 # Introduction
 
 In this report, we assess the optimal estimated treatment regimes under
@@ -455,6 +523,12 @@ $$\Delta_{MNAR} = E(\texttt{cesd}_{MNAR}) - E(\texttt{cesd}_{MAR})$$
 where the expectations are with respect to the patients with a missing CESD outcome
 at 6 months, and $\texttt{cesd}_{MNAR}$ and $\texttt{cesd}_{MAR}$ are the imputed 
 values under MNAR and MAR, respectively.
+
+In this report, we consider MNAR scenarios from an extremely large negative to
+an extremely large positive global shift. However, it should be kept in mind
+that higher scores for CESD correspond to worse depressive symptoms. If we
+believe that patients for which the treatment does not work are more likely to
+drop out of the study, then negative shifts in the CESD are unrealistic.
 
 In this report, all regimes are estimated through Q-learning. Further, all
 analysis choices are the same as for the main analysis under MAR unless
@@ -494,12 +568,12 @@ between the one-size-fits-all regimes increases with the global shift:
 * The difference between the aggregated regime and the best one-size-fits-all 
 regime is relatively insensitive to a global shift.
   * For the original Browne data, the estimated difference in values of the         aggregated
-  and best one-size-fits-all regime depends on the global shift only for
+  and the best one-size-fits-all regime depends on the global shift only for
   relatively large positive shifts. In addition, the confidence interval for the
   value of the aggregated regime always contains the estimated value of the best
   one-size-fits-all regime.
   * For the updated Browne data, the estimated difference in values of the        aggregated
-  and best one-size-fits-all regime is practically independent of the global
+  and the best one-size-fits-all regime is practically independent of the global
   shift. However, the length of the confidence intervals depends on the global
   shift. Indeed, the lower limit of the confidence interval for the aggregated
   regime approaches the estimated value of the best one-size-fits-all regime as
@@ -526,6 +600,12 @@ pooled_inference_aggregated_rules_tbl %>%
 ```
 
 # Classification
+
+In this section, we look at how the aggregated regimes classify patients across
+the MNAR scenarios. First, we describe this classification. Second, why try to
+explain differences in these classifications.
+
+## Descriptive
 
 ```{r}
 # Load original data set.
@@ -556,9 +636,9 @@ data_covariates = imputed_data %>%
     shift == 0
   ) %>%
   # Extract columns we need in the correct order.
-  select(c("sex", "age", "famfun", "cesd", "past_MDD"))
-data_matrix = model.matrix(cont_formula, data_covariates)
-  
+  select(c("sex", "age", "famfun", "cesd", "past_MDD", "id"))
+data_matrix = model.matrix(cont_formula, data_covariates %>% select(-id))
+data_matrix_ids = data_covariates$id
 
 classification_aggregated_rules_tbl = aggregated_rules_tbl %>%
   # We do not need the trivial regimes.
@@ -609,8 +689,48 @@ classification_aggregated_rules_tbl = classification_aggregated_rules_tbl %>%
             by = c("shift", "data"))
 ```
 
-In this section, we look at how the aggregated regimes classify patients across
-the MNAR scenarios. 
+```{r}
+# Construct data set with a column for the allocation of each patient in each 
+# aggregated regime.
+allocation_tbl = aggregated_rules_tbl %>%
+  # We do not need the trivial regimes.
+  filter(aggregation == "Circular Mean") %>%
+  select(data, regime_function, OTR_method, aggregation, shift) %>%
+  mutate(allocation = purrr::map(
+    .x = regime_function,
+    .f = function(f) {
+      f(data_matrix)
+    }
+  )) %>%
+  rowwise("data", "shift", "aggregation") %>%
+  reframe(tibble(
+    allocation = unlist(allocation),
+    id = data_matrix_ids
+  ))
+
+# Join the above data set with the corresponding data set under MAR and create a
+# new column with the allocation under MAR.
+allocation_tbl = allocation_tbl %>%
+  left_join(allocation_tbl %>%
+              filter(shift == 0) %>%
+              select(data, allocation, id), 
+            by = c("data", "id"),
+            suffix = c("", "_mar"))
+# Join with the data set of estimated contrasts.
+allocation_tbl = allocation_tbl %>%
+  left_join(imputed_data_contrasts_pooled,
+            by = c("shift", "data", "id"))
+# Construct new variable that indicates differential classification.
+allocation_tbl = allocation_tbl %>%
+  mutate(different_classification = allocation != allocation_mar)
+# Add shifts on the cesd scale that were computed before. 
+allocation_tbl = allocation_tbl %>%
+  left_join(shift_to_cesd_scale_tbl,
+            by = c("shift", "data"))
+```
+
+
+
 
 In Figure \@ref(fig:proportion-zero), we plot the proportion of patients
 classified to *Sertraline* by the aggregated regimes under various MNAR
@@ -647,11 +767,12 @@ classifications are much less sensitive to the MNAR scenarios in the updated
 Browne data than in the original Browne data. However, it is difficult to judge
 the relative importance of these differences. We therefore also plot the
 corresponding Cohen's kappas in Figure \@ref(fig:cohen-kappa). This corroborates
-our previous conclusions:
+our conclusions from Figure \@ref(fig:cell-probabilities):
 
-* In the original Browne data, Cohen's kappa is very sensitive to the global shift.
-* In the updated Browne data, Cohen's kappa is relatively insensitive to 
-the global shift. 
+* In the original Browne data, the patient classifications are very sensitive to the global shift.
+* In the updated Browne data, the patient classifications are relatively 
+insensitive to the global shift. Cohen's kappa remains large, even for extremely
+large positive shifts.
 
 ```{r cell-probabilities, fig.cap="Cell probabilities in the 2x2 tables mentioned in the text under various MNAR scenarios. The left-hand panel shows the results with the original Browne data and the right-hand panel shows the results with the updated Browne data."}
 classification_aggregated_rules_tbl %>%
@@ -681,15 +802,96 @@ classification_aggregated_rules_tbl %>%
   facet_grid(~ data)
 ```
 
+## Explanatory
+
+In the above subsection, we have seen that the classification of patients by the
+aggregated regimes changes as the global shift changes In this subsection, we
+try to explain this differential classification using the patient-level
+treatment contrasts, that is,
+$$C_i = E(Y_1 | X = x_i) - E(Y_0 | X = x).$$
+In practice, we can only estimate these contrasts. We consider two estimators.
+
+1. Outcome regression-based. This estimator is derived from the outcome
+regression estimator for the value of a fixed regime. Let $\mu_{a}(x_i;
+\hat{\beta}) = E(Y|X = x_i, A = a; \hat{\beta})$ be the estimated regression
+function (that was also used for Q-learning). The contrast is then estimated as
+$$\hat{C}_{i, OR} = \mu_{1}(x_i; \hat{\beta}) - \mu_{0}(x_i; \hat{\beta}).$$
+2. AIPWE-based. This estimator is derived from the AIPW estimator for the value
+of a fixed regime. Let $\pi(X_i; \hat{\gamma})$ be the estimated propensity
+score, $A_i$ the treatment group ($0$ for *Sertraline* and $1$ for *Sertraline +
+IPT*), and the $Y_i$ the CESD score at 6 months for patient $i$. The contrast is
+then estimated as
+$$\hat{C}_{i, AIPWE} = \frac{A_i}{\pi(x_i; \hat{\gamma})}Y_i - \frac{1 - A_i}{1 - \pi(x_i ; \hat{\gamma})Y_i} - \frac{A_i - \pi(x_i; \hat{\gamma})}{\pi(x_i; \hat{\gamma})} \mu_{1}(x_i; \hat{\beta}) - \frac{A_i - \pi(x_i; \hat{\gamma})}{1 - \pi(x_i; \hat{\gamma})}\mu_{0}(x_i; \hat{\beta}).$$
+
+For each patient, we compute the estimated contrast under MAR by first
+estimating the contrast in each imputed data set. Second, these estimated
+patient-level contrasts are pooled across imputations with Rubin's rules. Next,
+for each MNAR scenario we define two groups according to whether the patient's
+classification changes as compared to MAR (i.e., differential classification or
+not). 
+
+Figure \@ref(fig:contrasts-diff-classification-aipwe) summarizes the distribution
+of the absolute values of the estimated contrasts in each differential classification
+group, stratified by the MNAR scenarios. Note that this plot only includes the results
+for the original Browne data and the AIPWE-based estimator of the contrast. 
+The corresponding plots for the outcome regression-based estimator are presented
+in Figure \@ref(fig:contrasts-diff-classification-or).
+
+The outcome regression-based contrast estimates clearly explain which patients
+are differentially classified: patients with small estimated contrasts. These
+are patients for which there is little difference between both treatment options
+in terms of expected benefit. However, this is not clear when looking at the
+AIPWE-based contrast estimates. One possible reason for this discrepancy is that
+AIPWE-based estimates are much more noisy. Indeed, the range of the x-axis is
+much wider in Figure \@ref(fig:contrasts-diff-classification-aipwe) than in
+Figure \@ref(fig:contrasts-diff-classification-or). A second possible reason is 
+that the regimes were estimated by Q-learning which is directly related to the
+outcome regression based-estimator of the contrast estimates.
+
+
+```{r contrasts-diff-classification-aipwe, fig.cap="Distribution of the AIPWE-based estimates of the patient-level contrasts. Each subplot shows the histogram for these estimated contrasts, colored by whether the patient was differentially classified as compared to the MAR scenario. The subplot titles indicate the average shift in the corrsponding MNAR scenario."}
+allocation_tbl %>%
+  filter(data == "Original") %>%
+  ggplot(aes(x = abs(C_hat), fill = different_classification)) +
+  geom_histogram(color = "black", position = "identity", alpha = 0.5) +
+  ylab("Count (number of points in bin)") +
+  xlab("Absolute value of estimated patient-level contrast") +
+  scale_fill_discrete(name = "Differential classification") +
+  # geom_density(aes(y = 60 * after_stat(scaled), color = different_classification), 
+  #              bounds = c(0, +Inf),
+  #              alpha = 0.01, position = "identity") +
+  facet_wrap(~round(shift_cesd, 1))
+```
+
+```{r contrasts-diff-classification-or, fig.cap="Distribution of the outcome regression-based estimates of the patient-level contrasts. Each subplot shows the histogram for these estimated contrasts, colored by whether the patient was differentially classified as compared to the MAR scenario. The subplot titles indicate the average shift in the corrsponding MNAR scenario."}
+allocation_tbl %>%
+  filter(data == "Original") %>%
+  ggplot(aes(x = abs(C_hat_or), fill = different_classification)) +
+  geom_histogram(color = "black", position = "identity", alpha = 0.5) +
+  ylab("Count (number of points in bin)") +
+  xlab("Absolute value of estimated patient-level contrast") +
+  scale_fill_discrete(name = "Differential classification") +
+  # geom_density(aes(y = 60 * after_stat(density), color = different_classification), 
+  #              bounds = c(0, +Inf),
+  #              alpha = 0.01, position = "identity") +
+  facet_wrap(~round(shift_cesd, 1))
+```
+
+
 # Conclusions
 
 In the original Browne data, the aggregated regime is sensitive to MNAR
 scenarios with a global shift in terms of the classification of patients.
 However, in all these MNAR scenarios, the estimated values of the aggregated
-regimes remain close to the estimated value of the best one-size-fits-all
-regime. 
+regimes remain close to the corresponding estimated values of the best
+one-size-fits-all regime. The conclusions of the analysis under MAR thus remain
+valid under the global shift MNAR scenarios: there is no evidence of a useful
+non-trivial treatment regime.
 
-In the updated Browne data, the aggregated regime is relatively insensitive 
-to the MNAR scenarios with a global shift. Both the classification of patients 
-and the aggregated regime's value (relative to the trivial regimes) are not 
-severely changed under these MNAR scenarios.
+In the updated Browne data, the aggregated regime is relatively insensitive to
+the MNAR scenarios with a global shift. Both the classification of patients and
+the aggregated regime's value (relative to the best one-size-fits-all regime)
+are not severely changed under these MNAR scenarios. The conclusions of the
+analysis under MAR thus remain valid under the global shift MNAR scenarios:
+there is evidence of a useful non-trivial treatment regime and most patients are
+classified to the same treatment under MNAR.
