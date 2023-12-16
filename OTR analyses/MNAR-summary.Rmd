@@ -2,7 +2,14 @@
 title: "MNAR Sensitivity Analyses"
 author: "Florian Stijven"
 date: "`r Sys.Date()`"
-output: bookdown::html_document2
+output: 
+  bookdown::word_document2:
+    toc: true
+    number_sections: true
+  bookdown::html_document2:
+    toc: true
+    toc_float: true
+    number_sections: true
 editor_options: 
   markdown: 
     wrap: 72
@@ -517,7 +524,7 @@ To ensure that imputations in the MNAR scenarios still respect the $[0, 60]$
 interval, the global shift is implemented on the $\tilde{\texttt{cesd}}$ scale.
 Consequently, it is difficult to appreciate the size of the global shift.
 Therefore, for each
-shift on the $\tilde{\texttt{cesd}}$ scale, we also compute the average difference between the imputed values under MAR and the MNAR scenario. Specifically, this is done by
+shift on the $\tilde{\texttt{cesd}}$ scale, we also compute the average difference between the imputed values under the MAR and the MNAR scenario. Specifically, this is done by
 computing
 $$\Delta_{MNAR} = E(\texttt{cesd}_{MNAR}) - E(\texttt{cesd}_{MAR})$$
 where the expectations are with respect to the patients with a missing CESD outcome
@@ -722,7 +729,9 @@ allocation_tbl = allocation_tbl %>%
             by = c("shift", "data", "id"))
 # Construct new variable that indicates differential classification.
 allocation_tbl = allocation_tbl %>%
-  mutate(different_classification = allocation != allocation_mar)
+  mutate(different_classification = ifelse(allocation == allocation_mar,
+                                           "Same Classification", 
+                                           "Different Classification"))
 # Add shifts on the cesd scale that were computed before. 
 allocation_tbl = allocation_tbl %>%
   left_join(shift_to_cesd_scale_tbl,
@@ -849,28 +858,40 @@ that the regimes were estimated by Q-learning which is directly related to the
 outcome regression based-estimator of the contrast estimates.
 
 
-```{r contrasts-diff-classification-aipwe, fig.cap="Distribution of the AIPWE-based estimates of the patient-level contrasts. Each subplot shows the histogram for these estimated contrasts, colored by whether the patient was differentially classified as compared to the MAR scenario. The subplot titles indicate the average shift in the corrsponding MNAR scenario."}
+```{r contrasts-diff-classification-aipwe, fig.cap="Distribution of the AIPWE-based estimates of the patient-level contrasts in the original Browne data. Each subplot shows the histogram for these estimated contrasts, colored by whether the patient was differentially classified as compared to the MAR scenario. The subplot titles indicate the average shift in the corrsponding MNAR scenario."}
 allocation_tbl %>%
   filter(data == "Original") %>%
-  ggplot(aes(x = abs(C_hat), fill = different_classification)) +
-  geom_histogram(color = "black", position = "identity", alpha = 0.5) +
+  ggplot(aes(
+    x = abs(C_hat),
+    group = ifelse(different_classification == "Same Classification", "A", "B"),
+    fill = different_classification
+  )) +
+  geom_histogram(color = "black",
+                 position = "identity",
+                 alpha = 0.5) +
   ylab("Count (number of points in bin)") +
   xlab("Absolute value of estimated patient-level contrast") +
-  scale_fill_discrete(name = "Differential classification") +
-  # geom_density(aes(y = 60 * after_stat(scaled), color = different_classification), 
+  scale_fill_discrete(name = "Differential classification", 
+                      direction = -1) +
+  # geom_density(aes(y = 60 * after_stat(scaled), color = different_classification),
   #              bounds = c(0, +Inf),
   #              alpha = 0.01, position = "identity") +
-  facet_wrap(~round(shift_cesd, 1))
+  facet_wrap( ~ round(shift_cesd, 1))
 ```
 
-```{r contrasts-diff-classification-or, fig.cap="Distribution of the outcome regression-based estimates of the patient-level contrasts. Each subplot shows the histogram for these estimated contrasts, colored by whether the patient was differentially classified as compared to the MAR scenario. The subplot titles indicate the average shift in the corrsponding MNAR scenario."}
+```{r contrasts-diff-classification-or, fig.cap="Distribution of the outcome regression-based estimates of the patient-level contrasts in the original Browne data. Each subplot shows the histogram for these estimated contrasts, colored by whether the patient was differentially classified as compared to the MAR scenario. The subplot titles indicate the average shift in the corrsponding MNAR scenario."}
 allocation_tbl %>%
   filter(data == "Original") %>%
-  ggplot(aes(x = abs(C_hat_or), fill = different_classification)) +
+  ggplot(aes(
+    x = abs(C_hat_or),
+    group = ifelse(different_classification == "Same Classification", "A", "B"),
+    fill = different_classification
+  )) +
   geom_histogram(color = "black", position = "identity", alpha = 0.5) +
   ylab("Count (number of points in bin)") +
   xlab("Absolute value of estimated patient-level contrast") +
-  scale_fill_discrete(name = "Differential classification") +
+  scale_fill_discrete(name = "Differential classification", 
+                      direction = -1) +
   # geom_density(aes(y = 60 * after_stat(density), color = different_classification), 
   #              bounds = c(0, +Inf),
   #              alpha = 0.01, position = "identity") +
