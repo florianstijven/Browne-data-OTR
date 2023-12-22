@@ -7,7 +7,7 @@ output:
     toc: true
     toc_float: true
     number_sections: true
-  word_document:
+  bookdown::word_document2:
     toc: true
     number_sections: true
 ---
@@ -877,7 +877,7 @@ OTR_results %>%
   ggtitle("Estimated Regime Parameters for CESD")
 ```
 
-```{r, results='hide'}
+```{r, results='hide', fig.show='hide'}
 # Reproduce a new version of the previous figure for inclusion in the
 # manuscript. 
 OTR_results %>%
@@ -895,7 +895,7 @@ OTR_results %>%
     cesd = cesd / norm,
     past_MDD = past_MDD / norm
   ) %>%
-  rename(`OTR method` = OTR_method) %>%
+  rename(`OTR method` = OTR_method, `past MDD` = past_MDD) %>%
   GGally::ggpairs(
     columns = 9:13,
     upper = NULL,
@@ -904,7 +904,8 @@ OTR_results %>%
     legend = 1
   ) +
   scale_x_continuous(n.breaks = 4, guide = guide_axis(n.dodge=2)) +
-  theme(legend.position = "right")
+  theme(legend.position = "bottom", 
+        legend.title = element_blank())
 ggsave(filename = "figures-manuscript/main-text/between-imputation-pm-estimates.png",
        device = "png",
        width = double_width,
@@ -1508,14 +1509,20 @@ pooled_inference_aggregated_rules_tbl %>%
   facet_grid(~ outcome, scales = "free")
 ```
 
-```{r, results='hide'}
+```{r, results='hide', fig.show='hide'}
 # Reproduce the previous figure, but only with CESD. This figure is used in the
-# manuscript.
+# manuscript. In the paper, we do not discuss majority vote as aggregation
+# method. So, this aggregation method has been removed from the figure as well.
 pooled_inference_aggregated_rules_tbl %>%
-  filter(imputation == "Per Arm", outcome == "cesd") %>%
+  filter(imputation == "Per Arm", aggregation != "majority vote") %>%
+  mutate(OTR_method = fct_recode(
+    OTR_method,
+    Sertraline = "One-Size-Fits-All (0)",
+    "Sertraline + IPT" = "One-Size-Fits-All (1)"
+  )) %>%
   ggplot(aes(y = aggregation, x = pooled_estimated_value, color = OTR_method)) +
   geom_point(aes(fill = OTR_method), position = position_dodge(width = .3)) +
-    geom_errorbarh(
+  geom_errorbarh(
     aes(
       xmin = pooled_estimated_value - 1.96 * sqrt(pooled_total_variance),
       xmax = pooled_estimated_value + 1.96 * sqrt(pooled_total_variance)
@@ -1526,8 +1533,20 @@ pooled_inference_aggregated_rules_tbl %>%
   xlab("Pooled Estimated Value") +
   ylab("Aggregation Method") +
   scale_color_discrete(name = "OTR method") +
-  scale_fill_discrete(name = "OTR method")
-ggsave(filename = "figures-manuscript/main-text/results-various-aggregation-methods.png",
+  scale_fill_discrete(name = "OTR method") +
+  facet_grid(~ outcome, scales = "free") +
+  theme(
+    axis.text.y = element_text(
+      angle = 90,
+      vjust = 1,
+      hjust = 0.5
+    ),
+    legend.position = "bottom",
+    legend.title = element_blank()
+  ) +
+  guides(color = guide_legend(nrow = 2))
+
+ggsave(filename = "figures-manuscript/supplementary-information/results-various-aggregation-methods-all-outcomes.png",
        device = "png",
        width = double_width,
        height = double_height,
@@ -1535,17 +1554,61 @@ ggsave(filename = "figures-manuscript/main-text/results-various-aggregation-meth
        dpi = res)
 ```
 
+```{r, results='hide', fig.show='hide'}
+# Reproduce the previous figure. This figure is used in the manuscript.
+pooled_inference_aggregated_rules_tbl %>%
+  filter(imputation == "Per Arm",
+         outcome == "cesd",
+         aggregation != "majority vote") %>%
+  mutate(OTR_method = fct_recode(
+    OTR_method,
+    Sertraline = "One-Size-Fits-All (0)",
+    "Sertraline + IPT" = "One-Size-Fits-All (1)"
+  )) %>%
+  ggplot(aes(y = aggregation, x = pooled_estimated_value, color = OTR_method)) +
+  geom_point(aes(fill = OTR_method), position = position_dodge(width = .3)) +
+  geom_errorbarh(
+    aes(
+      xmin = pooled_estimated_value - 1.96 * sqrt(pooled_total_variance),
+      xmax = pooled_estimated_value + 1.96 * sqrt(pooled_total_variance)
+    ),
+    height = 0.2,
+    position = position_dodge(width = .3),
+  ) +
+  xlab("Pooled Estimated Value") +
+  ylab("Aggregation Method") +
+  scale_color_discrete(name = "OTR method") +
+  scale_fill_discrete(name = "OTR method") +
+  theme(
+    # axis.text.y = element_text(
+    #   angle = 90,
+    #   vjust = 1,
+    #   hjust = 0.5
+    # ),
+    legend.position = "bottom",
+    legend.title = element_blank()
+  ) +
+  guides(color = guide_legend(nrow = 2))
+# ggsave(filename = "figures-manuscript/main-text/results-various-aggregation-methods.png",
+#        device = "png",
+#        width = single_width,
+#        height = single_height,
+#        units = "cm",
+#        dpi = res)
+```
+
 
 For completeness, we also provide the information in the above figure in the following table.
 
 ```{r}
 pooled_inference_aggregated_rules_tbl %>%
-  filter(imputation == "Per Arm") %>%
   mutate(ul_ci = pooled_estimated_value + 1.96 * sqrt(pooled_total_variance),
          ll_ci = pooled_estimated_value - 1.96 * sqrt(pooled_total_variance)) %>%
-  select(outcome, OTR_method, aggregation, pooled_estimated_value, ll_ci, ul_ci) %>%
+  select(outcome, OTR_method, aggregation, imputation, pooled_estimated_value, ll_ci, ul_ci) %>%
   knitr::kable(digits = 3)
-  
+# Save data set for further use.
+saveRDS(pooled_inference_aggregated_rules_tbl, 
+        file = "OTR analyses/pooled_inference_aggregated_rules_tbl.rds")
 ```
 
 ## Interpretation of the Aggregated Regimes

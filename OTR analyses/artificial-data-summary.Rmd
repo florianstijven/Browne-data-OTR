@@ -513,6 +513,10 @@ pooled_inference_aggregated_rules_tbl %>%
          "ul 95% CI") %>%
   knitr::kable(digits = 3, 
                caption = "Pooled estimated values for the aggregated regimes. Inference is based on the application of Rubin's rules.")
+
+# Save data set for further use.
+saveRDS(pooled_inference_aggregated_rules_tbl, 
+        file = "OTR analyses/pooled_inference_aggregated_rules_tbl_artificial.rds")
 ```
 
 

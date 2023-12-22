@@ -3,8 +3,8 @@ title: "Evaluation of Tuning Parameters in the Genetic Algorithm"
 author: "Florian Stijven"
 date: "`r Sys.Date()`"
 output:
-  word_document: default
   html_document: default
+  word_document: default
 ---
 
 ```{r, echo=FALSE, message=FALSE, warning=FALSE}
@@ -385,8 +385,8 @@ OTR_tuning_parameters_tbl %>%
   scale_color_discrete(name = "Number of Runs") +
   scale_shape_discrete(name = "Population Size") +
   xlab("Imputation Number") + 
-  ylab("Estimated Value")
-ggsave(filename = "figures-manuscript/supplementary-information/tuning-parameters-all-outcomes.png",
+  ylab(latex2exp::TeX("Estimated Value, $\\hat{\\nu}_m(\\hat{d}_m)$"))
+ggsave(filename = "figures-manuscript/main-text/tuning-parameters-all-outcomes.png",
        device = "png",
        width = double_width,
        height = double_height,
@@ -415,13 +415,13 @@ OTR_tuning_parameters_tbl %>%
   scale_color_discrete(name = "Number of Runs") +
   scale_shape_discrete(name = "Population Size") +
   xlab("Imputation Number") + 
-  ylab("Estimated Value")
-ggsave(filename = "figures-manuscript/main-text/tuning-parameters-cesd.png",
-       device = "png",
-       width = double_width,
-       height = double_height,
-       units = "cm",
-       dpi = res)
+  ylab(latex2exp::TeX("Estimated Value, $\\hat{\\nu}_m(\\hat{d}_m)$"))
+# ggsave(filename = "figures-manuscript/main-text/tuning-parameters-cesd.png",
+#        device = "png",
+#        width = double_width,
+#        height = double_height,
+#        units = "cm",
+#        dpi = res)
 ```
 
 
@@ -463,7 +463,7 @@ OTR_tuning_parameters_tbl %>%
   scale_color_discrete(name = "Number of Runs", drop = FALSE) +
   scale_shape_discrete(name = "Population Size") +
   xlab("Imputation Number") + 
-  ylab("Estimated Value") +
+  ylab(latex2exp::TeX("Estimated Value, $\\hat{\\nu}_m(\\hat{d}_m)$")) +
   guides(colour = guide_legend(order = 2),
          shape = guide_legend(order = 1))
 ggsave(filename = "figures-manuscript/supplementary-information/tuning-parameters-all-outcomes-filtered.png",
@@ -573,6 +573,8 @@ OTR_starting_values_tbl %>%
   slice_max(order_by = estimated_value,
             n = 1,
             with_ties = FALSE) %>%
+  mutate(starting_value = fct_recode(starting_value,
+                                     "Q-learning" = "Q")) %>%
   ggplot(aes(
     x = X_Imputation_,
     y = estimated_value,
@@ -583,8 +585,8 @@ OTR_starting_values_tbl %>%
   facet_grid(rows = "outcome", scales = "free_y") +
   scale_color_discrete(name = "Type of Starting Values") +
   xlab("Imputation Number") +
-  ylab("Estimated Value")
-ggsave(filename = "figures-manuscript/supplementary-information/starting-values-all-outcomes.png",
+  ylab(latex2exp::TeX("Estimated Value, $\\hat{\\nu}_m(\\hat{d}_m)$"))
+ggsave(filename = "figures-manuscript/main-text/starting-values-all-outcomes.png",
        device = "png",
        width = double_width,
        height = double_height,
