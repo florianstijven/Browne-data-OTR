@@ -3,16 +3,16 @@ title: "Artificial Data Analysis"
 author: "Florian Stijven"
 date: "`r Sys.Date()`"
 output:
-  html_document:
+  word_document:
     toc: yes
-    df_print: paged
+    number_sections: yes
   bookdown::html_document2:
     toc: yes
     toc_float: yes
     number_sections: yes
-  word_document:
+  html_document:
     toc: yes
-    number_sections: yes
+    df_print: paged
 ---
 
 
@@ -242,6 +242,22 @@ circular_mean_aggregated = OTR_results %>%
 ```
 
 ```{r}
+# Apply Rubin's rules directly for Q-learning.
+rubin_rules_aggregated = OTR_results %>%
+  filter(OTR_method == "Q-learning") %>%
+  group_by(imputation, OTR_method, update, outcome_model) %>%
+  reframe(data.frame(constant, sex, age, famfun, cesd, past_MDD) %>%
+            colMeans() %>%
+            data.frame() %>%
+            t() %>%
+            as.data.frame(),
+          param_vector = data.frame(constant, sex, age, famfun, cesd, past_MDD) %>%
+            colMeans() %>%
+            as.numeric() %>%
+            list()) 
+```
+
+```{r}
 # Include the one-size-fits-all regimes. 
 trivial_rules_tbl = expand_grid(
   imputation = c("Per Arm", "Global"),
@@ -266,8 +282,12 @@ trivial_rules_tbl = trivial_rules_tbl %>%
 # tibble. We cannot yet include the tibble that contains the majority votes
 # regimes because the corresponding data handling is different.
 aggregated_rules_tbl =
-  circular_mean_aggregated %>%
-  mutate(aggregation = "Circular Mean")
+  bind_rows(
+    circular_mean_aggregated %>%
+      mutate(aggregation = "Circular Mean"),
+    rubin_rules_aggregated
+    %>% mutate(aggregation = "Rubin's Rules")
+  )
 ```
 
 ```{r, cache=TRUE}
@@ -359,7 +379,7 @@ months. Treatment $0$ is "Sertraline alone" and treatment $1$ is "Sertraline and
 IPT".
 
 * **Update 1.**  The outcome value is modified as follows,
-$$\tilde{\texttt{cesd2}} = \texttt{cesd2} - (0.30 \cdot (\texttt{cesd} - 40) - 6 \cdot \texttt{past_MDD}) \cdot I(\texttt{group} = 1) + 0.20 \cdot (\texttt{cesd} - 40) + 4 \cdot \texttt{past_MDD}. $$
+$$\tilde{\texttt{cesd2}} = \texttt{cesd2} - (0.30 \cdot (\texttt{cesd} - 40) + 6 \cdot \texttt{past_MDD}) \cdot I(\texttt{group} = 1) + 0.20 \cdot (\texttt{cesd} - 40) + 4 \cdot \texttt{past_MDD}. $$
 This update changes the interaction effects. Patients will thus benefit
 more from the addition of IPT to Sertraline if they have a more severe
 depression at baseline (larger baseline CESD and past MDD).
@@ -500,14 +520,14 @@ pooled_inference_aggregated_rules_tbl %>%
 
 ```{r}
 pooled_inference_aggregated_rules_tbl %>%
-  filter(update == 1L,
-         aggregation %in% c("Circular Mean", "One-Size-Fits-All")) %>%
+  filter(update == 1L) %>%
   mutate(
     "ll 95% CI" = pooled_estimated_value - 1.96 * sqrt(pooled_total_variance),
     "ul 95% CI" = pooled_estimated_value + 1.96 * sqrt(pooled_total_variance)
   ) %>%
   select(imputation,
          OTR_method,
+         aggregation,
          pooled_estimated_value,
          "ll 95% CI",
          "ul 95% CI") %>%
