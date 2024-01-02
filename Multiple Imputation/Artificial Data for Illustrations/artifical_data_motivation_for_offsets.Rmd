@@ -148,7 +148,7 @@ original_data %>%
 
 The (first) update involves the introduction of additional treatment effect
 heterogeneity. The modification of the outcome variable is as follows,
-$$\tilde{\texttt{cesd2}} = \texttt{cesd2} - (0.30 \cdot (\texttt{cesd} - 40) - 6 \cdot \texttt{past_MDD}) \cdot I(\texttt{group} = 1) + 0.20 \cdot (\texttt{cesd} - 40) + 4 \cdot \texttt{past_MDD}$$
+$$\tilde{\texttt{cesd2}} = \texttt{cesd2} - (0.30 \cdot (\texttt{cesd} - 40) + 6 \cdot \texttt{past_MDD}) \cdot I(\texttt{group} = 1) + 0.20 \cdot (\texttt{cesd} - 40) + 4 \cdot \texttt{past_MDD}$$
 where a tilde indicates the updated value and group $1$ corresponds to
 "Sertraline and IPT". Patients will thus benefit more from "Sertraline and IPT" (as
 compared to "Sertraline alone") if they have a more severe depression at
