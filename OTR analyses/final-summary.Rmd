@@ -882,10 +882,15 @@ OTR_results %>%
 # manuscript. 
 OTR_results %>%
   filter(outcome == "cesd", imputation == "Per Arm") %>%
-  mutate(norm = sqrt(
-    constant ^ 2 + sex ^ 2 + age ^ 2 + cesd ^ 2 + famfun ^ 2 + past_MDD ^
-      2
-  )) %>%
+  mutate(
+    norm = sqrt(constant ^ 2 + sex ^ 2 + age ^ 2 + cesd ^ 2 + famfun ^ 2 + past_MDD ^
+                  2),
+    OTR_method = ifelse(
+      OTR_method == "value search",
+      "Value Search Estimation",
+      OTR_method
+    )
+  ) %>%
   # Divide the regime parameters by the norm.
   mutate(
     constant = constant / norm,
@@ -903,15 +908,17 @@ OTR_results %>%
     mapping = aes(color = `OTR method`),
     legend = 1
   ) +
-  scale_x_continuous(n.breaks = 4, guide = guide_axis(n.dodge=2)) +
-  theme(legend.position = "bottom", 
+  scale_x_continuous(n.breaks = 4, guide = guide_axis(n.dodge = 2)) +
+  theme(legend.position = "bottom",
         legend.title = element_blank())
-ggsave(filename = "figures-manuscript/main-text/between-imputation-pm-estimates.png",
-       device = "png",
-       width = double_width,
-       height = double_height,
-       units = "cm",
-       dpi = res)
+ggsave(
+  filename = "figures-manuscript/main-text/between-imputation-pm-estimates.png",
+  device = "png",
+  width = double_width,
+  height = double_height,
+  units = "cm",
+  dpi = res
+)
 ```
 
 
@@ -1518,7 +1525,8 @@ pooled_inference_aggregated_rules_tbl %>%
   mutate(OTR_method = fct_recode(
     OTR_method,
     Sertraline = "One-Size-Fits-All (0)",
-    "Sertraline + IPT" = "One-Size-Fits-All (1)"
+    "Sertraline + IPT" = "One-Size-Fits-All (1)",
+    "Value Search Estimation" = "value search"
   )) %>%
   ggplot(aes(y = aggregation, x = pooled_estimated_value, color = OTR_method)) +
   geom_point(aes(fill = OTR_method), position = position_dodge(width = .3)) +

@@ -27,7 +27,8 @@ pooled_inference_aggregated_rules_tbl %>%
   mutate(OTR_method = fct_recode(
     OTR_method,
     Sertraline = "One-Size-Fits-All (0)",
-    "Sertraline + IPT" = "One-Size-Fits-All (1)"
+    "Sertraline + IPT" = "One-Size-Fits-All (1)",
+    "Value Search Estimation" = "value search"
   )) %>%
   ggplot(aes(y = aggregation, x = pooled_estimated_value, color = OTR_method)) +
   geom_point(position = position_dodge(width = .3)) +
@@ -39,7 +40,7 @@ pooled_inference_aggregated_rules_tbl %>%
     height = 0.2,
     position = position_dodge(width = .3),
   ) +
-  xlab("Pooled Estimated Value") +
+  xlab(latex2exp::TeX("Pooled Estimated Value, \\bar{\\nu}(\\tilde{d})")) +
   ylab("Aggregation Method") +
   scale_color_discrete(name = "OTR method") +
   facet_grid(imputation~data) +

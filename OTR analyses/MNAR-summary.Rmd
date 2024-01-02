@@ -628,7 +628,7 @@ pooled_inference_aggregated_rules_tbl %>%
     position = position_dodge(1.5),
   ) +
   ylab(latex2exp::TeX("Pooled Estimated Value, $\\bar{\\nu}(\\tilde{d})")) +
-  xlab("Average Global Shift on the CESD scale") +
+  xlab(latex2exp::TeX("$\\Delta_{MNAR}$")) +
   scale_color_discrete(name = "OTR method") +
   scale_fill_discrete(name = "OTR method") +
   theme(legend.position = "bottom", 
@@ -858,7 +858,7 @@ classification_aggregated_rules_tbl %>%
   ggplot(aes(x = shift_cesd, y = cohen_kappa)) + 
   geom_point() +
   geom_line() +
-  xlab("Average Global Shift on the CESD scale") +
+  xlab(latex2exp::TeX("$\\Delta_{MNAR}$")) +
   ylab("Cohen's kappa")
 ggsave(filename = "figures-manuscript/main-text/mnar-cohen-kappa.png",
        device = "png",
@@ -972,7 +972,7 @@ allocation_tbl %>%
                  position = "identity",
                  alpha = 0.5) +
   ylab("Count (number of points in bin)") +
-  xlab("Absolute value of estimated patient-level contrast") +
+  xlab(latex2exp::TeX("Absolute Value of Estimated Patient-Level Contrast, $|\\hat{C}_{i}|$")) +
   scale_fill_discrete(name = "Differential classification", 
                       direction = 1) +
   facet_wrap( ~ round(shift_cesd, 1)) +
