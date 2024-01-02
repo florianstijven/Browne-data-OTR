@@ -3,8 +3,8 @@ title: "Evaluation of Tuning Parameters in the Genetic Algorithm"
 author: "Florian Stijven"
 date: "`r Sys.Date()`"
 output:
-  html_document: default
   word_document: default
+  html_document: default
 ---
 
 ```{r, echo=FALSE, message=FALSE, warning=FALSE}
@@ -586,7 +586,7 @@ OTR_starting_values_tbl %>%
   scale_color_discrete(name = "Type of Starting Values") +
   xlab("Imputation Number") +
   ylab(latex2exp::TeX("Estimated Value, $\\hat{\\nu}_m(\\hat{d}_m)$"))
-ggsave(filename = "figures-manuscript/main-text/starting-values-all-outcomes.png",
+ggsave(filename = "figures-manuscript/supplementary-information/starting-values-all-outcomes.png",
        device = "png",
        width = double_width,
        height = double_height,
