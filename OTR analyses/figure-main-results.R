@@ -22,8 +22,13 @@ pooled_inference_aggregated_rules_tbl = bind_rows(
 
 # Build the plot.
 pooled_inference_aggregated_rules_tbl %>%
-  filter(aggregation %in% c("Circular Mean", "One-Size-Fits-All"),
+  filter(aggregation %in% c("Circular Mean", "One-Size-Fits-All", "Rubin's Rules"),
          outcome == "cesd") %>%
+  mutate(OTR_method = fct_recode(
+    OTR_method,
+    Sertraline = "One-Size-Fits-All (0)",
+    "Sertraline + IPT" = "One-Size-Fits-All (1)"
+  )) %>%
   ggplot(aes(y = aggregation, x = pooled_estimated_value, color = OTR_method)) +
   geom_point(position = position_dodge(width = .3)) +
   geom_errorbarh(
@@ -35,10 +40,11 @@ pooled_inference_aggregated_rules_tbl %>%
     position = position_dodge(width = .3),
   ) +
   xlab("Pooled Estimated Value") +
-  ylab("Estimation Method") +
+  ylab("Aggregation Method") +
   scale_color_discrete(name = "OTR method") +
   facet_grid(imputation~data) +
-  theme(legend.position = "bottom") +
+  theme(legend.position = "bottom", 
+        legend.title = element_blank()) +
   guides(color = guide_legend(nrow = 2))
   
 # Save figure.
