@@ -22,14 +22,20 @@ pooled_inference_aggregated_rules_tbl = bind_rows(
 
 # Build the plot.
 pooled_inference_aggregated_rules_tbl %>%
-  filter(aggregation %in% c("Circular Mean", "One-Size-Fits-All", "Rubin's Rules"),
-         outcome == "cesd") %>%
-  mutate(OTR_method = fct_recode(
-    OTR_method,
-    Sertraline = "One-Size-Fits-All (0)",
-    "Sertraline + IPT" = "One-Size-Fits-All (1)",
-    "Value Search Estimation" = "value search"
-  )) %>%
+  filter(
+    aggregation %in% c("Circular Mean", "One-Size-Fits-All", "Rubin's Rules"),
+    outcome == "cesd"
+  ) %>%
+  mutate(
+    OTR_method = fct_recode(
+      OTR_method,
+      Sertraline = "One-Size-Fits-All (0)",
+      "Sertraline + IPT" = "One-Size-Fits-All (1)",
+      "Value Search Estimation" = "value search"
+    ),
+    aggregation = fct_recode(aggregation,
+                             "Mean Direction" = "Circular Mean")
+  ) %>%
   ggplot(aes(y = aggregation, x = pooled_estimated_value, color = OTR_method)) +
   geom_point(position = position_dodge(width = .3)) +
   geom_errorbarh(
