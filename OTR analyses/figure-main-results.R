@@ -20,7 +20,7 @@ pooled_inference_aggregated_rules_tbl = bind_rows(
     filter(update == 1)
 )
 
-# Build the plot.
+# Build the plot for CESD only.
 pooled_inference_aggregated_rules_tbl %>%
   filter(
     aggregation %in% c("Circular Mean", "One-Size-Fits-All", "Rubin's Rules"),
@@ -56,6 +56,50 @@ pooled_inference_aggregated_rules_tbl %>%
   
 # Save figure.
 ggsave(filename = "figures-manuscript/main-text/estimated-values-aggregated.png",
+       device = "png",
+       width = double_width,
+       height = double_height,
+       units = "cm",
+       dpi = res)
+
+# Build the plot for all outcome variables.
+pooled_inference_aggregated_rules_tbl %>%
+  filter(imputation == "Per Arm", aggregation != "majority vote") %>%
+  mutate(OTR_method = fct_recode(
+    OTR_method,
+    Sertraline = "One-Size-Fits-All (0)",
+    "Sertraline + IPT" = "One-Size-Fits-All (1)",
+    "Value Search Estimation" = "value search"
+  ),
+  aggregation = fct_recode(aggregation,
+                           "Mean Direction" = "Circular Mean")) %>%
+  ggplot(aes(y = aggregation, x = pooled_estimated_value, color = OTR_method)) +
+  geom_point(aes(fill = OTR_method), position = position_dodge(width = .3)) +
+  geom_errorbarh(
+    aes(
+      xmin = pooled_estimated_value - 1.96 * sqrt(pooled_total_variance),
+      xmax = pooled_estimated_value + 1.96 * sqrt(pooled_total_variance)
+    ),
+    height = 0.2,
+    position = position_dodge(width = .3),
+  ) +
+  xlab(latex2exp::TeX("Pooled Estimated Value, \\bar{\\nu}(\\tilde{d})")) +
+  ylab("Aggregation Method") +
+  scale_color_discrete(name = "OTR method") +
+  scale_fill_discrete(name = "OTR method") +
+  facet_grid(~ outcome, scales = "free") +
+  theme(
+    axis.text.y = element_text(
+      angle = 90,
+      vjust = 1,
+      hjust = 0.5
+    ),
+    legend.position = "bottom",
+    legend.title = element_blank()
+  ) +
+  guides(color = guide_legend(nrow = 2))
+
+ggsave(filename = "figures-manuscript/supplementary-information/results-various-aggregation-methods-all-outcomes.png",
        device = "png",
        width = double_width,
        height = double_height,
