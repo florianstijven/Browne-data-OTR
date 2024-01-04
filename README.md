@@ -12,7 +12,7 @@ in R-scripts, and was run on high-performance computing (HPC) infrastructure
 (Vlaams Supercomputer Centrum, VSC).
 4. Code used for processing, analyzing, and summarizing the estimated optimal
 treatment regimes. This code is organized in Rmarkdown files. The reports produced
-by these Rmarkdown files are included in this repository, both in html and word
+by these Rmarkdown files are included in this repository, in html and word
 format.
 
 In the following sections, we describe the files present in this repository in
@@ -32,7 +32,7 @@ files.
 # Missing Data and Multiple Imputation
 
 All code related to exploring missing data and performing multiple imputation resides
-in the `Mutliple Imputation/` directory. 
+in the `Multiple Imputation/` directory. 
 
 The `Multiple Imputation/exploration_of_missingness.Rmd` file contains code (and
 prose) for exploring the missingness. The html and word documents produced by this
@@ -54,14 +54,15 @@ Browne data.
 * `MI_global.sas`: sas code for performing global imputation on the artificial 
 Browne data.
 * `artificial_data_motivation_for_offsets.Rmd`: Rmarkdown file where the original
-Browne data and artificial Browne data are being compared. The html and word documents
+Browne data and artificial Browne data are being compared. The goal of this comparison
+was to evaluate whether the changes to the Browne data were realistic. The html and word documents
 produced by this Rmarkdown file are also included under the same name.
 
 Finally, the `Multiple Imputation/MNAR-sensitivity-analysis/` directory contains two sas
-files for multiple imputation under Missing Not At Random (MNAR): `MI-global-shift.sas` and `MI-global-shift-updated1.sas`.
+scripts for multiple imputation under Missing Not At Random (MNAR): `MI-global-shift.sas` and `MI-global-shift-updated1.sas`.
 The first file does multiple imputation under MNAR for the original Browne data, as described in 
 Section 4.4 of the paper. The second file does this for the artificial Browne data, but these results 
-are not described in the paper.
+are not presented in the paper.
 
 
 # Estimation of Optimal Treatment Regimes
@@ -74,9 +75,8 @@ data and the data imputed under MNAR.
     - `./q-learning.R`, `./q-learning-artificial-data.R`, and `q-learning-MNAR.R` contain the code for 
     performing Q-learning in the original Browne data, the artificial Browne data,
     and the data imputed under MNAR, respectively.
-    - `./VSC` contains code that was run on HPC infrastructure. This code was used 
-    for value search estimation. This code is
-    organized into three sub-directories:
+    - `./VSC/` contains code that was run on HPC infrastructure. This code was used 
+    for value search estimation and is organized into three sub-directories:
         1. `./VSC/R-scripts`: This directory contains the R-scripts that were 
         run on the HPC infrastructure.
         2. `./VSC/job-files`: This directory contains the slurm files used
@@ -86,9 +86,9 @@ data and the data imputed under MNAR.
         Note that only output to the console is included in this directory. The 
         objects containing the estimated optimal regimes cannot be included in
         this repository because they also contain the original data.
-2. `OTR analyses/tuning-parameters`: This folder contains the code implementing 
+2. `OTR analyses/tuning-parameters/`: This folder contains the code implementing 
 the value search estimator that was used for exploring the performance of various
-tuning parameters. The `./VSC` folder is organized in the same manner as above.
+tuning parameters. The `./VSC/` folder is organized in the same manner as above.
 The `./tuning-parameters-results.Rmd` file is where the estimated regimes under
 various tuning parameters are summarized and compared. The associated html and word
 documents have also been included under the same name.
@@ -113,13 +113,13 @@ The `OTR analyses/MNAR-summary.Rmd` file contains the code for processing and su
 results of the sensitivity analysis. The associated html and word documents 
 have also been included under the same name.
 
-The `OTR analyses/figure-main-results.R` file contains the code to produce Figure 2 and 
+The `OTR analyses/figure-main-results.R` script contains the code to produce Figure 2 and 
 Web Figure 3. This script uses the `OTR analyses/pooled_inference_aggregated_rules_tbl.rds` and
 `OTR analyses/pooled_inference_aggregated_rules_tbl_artificial.rds` data files to generate the figures. 
 These latter two data files - which contain inferential results for the aggregated regimes - are produced 
 by `OTR analyses/final-summary.Rmd` and `OTR analyses/artifical-data-summary.Rmd`, respectively.
 
-While the Rmarkdown files generate independent reports, they also contain code
+While the Rmarkdown files produce independent reports in html and word format, they also contain code
 that saves the figures presented in the paper into the `figures-manuscript/`
 directory.
 
