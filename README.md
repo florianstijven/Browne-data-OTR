@@ -6,9 +6,9 @@ is organized into four parts:
 
 1. Code used for data preparation, SAS 9.4 was used here. 
 2. Code used for exploring missing data and performing multiple imputation. SAS 
-9.4 and R have been used here.
+9.4 and R were used here.
 3. Code used for estimation of optimal treatment regimes. This code is organized
-in R-scripts, and has been run on high-performance computing (HPC) infrastructure
+in R-scripts, and was run on high-performance computing (HPC) infrastructure
 (Vlaams Supercomputer Centrum, VSC).
 4. Code used for processing, analyzing, and summarizing the estimated optimal
 treatment regimes. This code is organized in Rmarkdown files. The reports produced
