@@ -64,7 +64,7 @@ ggsave(filename = "figures-manuscript/main-text/estimated-values-aggregated.png"
 
 # Build the plot for all outcome variables.
 pooled_inference_aggregated_rules_tbl %>%
-  filter(imputation == "Per Arm", aggregation != "majority vote") %>%
+  filter(imputation == "Per Arm", aggregation != "majority vote", is.na(update)) %>%
   mutate(OTR_method = fct_recode(
     OTR_method,
     Sertraline = "One-Size-Fits-All (0)",
