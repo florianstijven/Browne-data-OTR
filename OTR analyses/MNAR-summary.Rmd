@@ -628,7 +628,7 @@ pooled_inference_aggregated_rules_tbl %>%
     position = position_dodge(1.5),
   ) +
   ylab(latex2exp::TeX("Pooled Estimated Value, $\\bar{\\nu}(\\tilde{d})")) +
-  xlab(latex2exp::TeX("$\\Delta_{MNAR}$")) +
+  xlab(latex2exp::TeX("$\\bar{\\Delta}_{MNAR}$")) +
   scale_color_discrete(name = "OTR method") +
   scale_fill_discrete(name = "OTR method") +
   theme(legend.position = "bottom", 
@@ -858,7 +858,7 @@ classification_aggregated_rules_tbl %>%
   ggplot(aes(x = shift_cesd, y = cohen_kappa)) + 
   geom_point() +
   geom_line() +
-  xlab(latex2exp::TeX("$\\Delta_{MNAR}$")) +
+  xlab(latex2exp::TeX("$\\bar{\\Delta}_{MNAR}$")) +
   ylab("Cohen's kappa")
 ggsave(filename = "figures-manuscript/main-text/mnar-cohen-kappa.png",
        device = "png",
@@ -946,15 +946,17 @@ allocation_tbl %>%
     group = ifelse(different_classification == "Same Classification", "A", "B"),
     fill = different_classification
   )) +
-  geom_histogram(color = "black", position = "identity", alpha = 0.5) +
+  geom_histogram(color = "black",
+                 position = "identity",
+                 alpha = 0.5) +
   ylab("Count (number of points in bin)") +
   xlab("Absolute value of estimated patient-level contrast") +
-  scale_fill_discrete(name = "Differential classification", 
+  scale_fill_discrete(name = "Differential classification",
                       direction = 1) +
-  # geom_density(aes(y = 60 * after_stat(density), color = different_classification), 
+  # geom_density(aes(y = 60 * after_stat(density), color = different_classification),
   #              bounds = c(0, +Inf),
   #              alpha = 0.01, position = "identity") +
-  facet_wrap(~round(shift_cesd, 1))
+  facet_wrap(~ round(shift_cesd, 1), labeller = label_parsed)
 ```
 
 ```{r, results='hide', fig.show='hide'}
@@ -963,6 +965,7 @@ allocation_tbl %>%
 # accordingly.
 allocation_tbl %>%
   filter(data == "Original") %>%
+  mutate(shift_cesd = paste0("bar(Delta)[MNAR] ==", round(shift_cesd, 1))) %>%
   ggplot(aes(
     x = abs(C_hat_or),
     group = ifelse(different_classification == "Same Classification", "A", "B"),
@@ -972,18 +975,24 @@ allocation_tbl %>%
                  position = "identity",
                  alpha = 0.5) +
   ylab("Count (number of points in bin)") +
-  xlab(latex2exp::TeX("Absolute Value of Estimated Patient-Level Contrast, $|\\hat{C}_{i}|$")) +
-  scale_fill_discrete(name = "Differential classification", 
+  xlab(
+    latex2exp::TeX(
+      "Absolute Value of Estimated Patient-Level Contrast, $|\\hat{C}_{i}|$"
+    )
+  ) +
+  scale_fill_discrete(name = "Differential classification",
                       direction = 1) +
-  facet_wrap( ~ round(shift_cesd, 1)) +
-  theme(legend.position = "bottom", 
+  facet_wrap(~ shift_cesd, labeller = label_parsed) +
+  theme(legend.position = "bottom",
         legend.title = element_blank())
-ggsave(filename = "figures-manuscript/main-text/mnar-distribution-contrasts.png",
-       device = "png",
-       width = double_width,
-       height = double_height,
-       units = "cm",
-       dpi = res)
+ggsave(
+  filename = "figures-manuscript/main-text/mnar-distribution-contrasts.png",
+  device = "png",
+  width = double_width,
+  height = double_height,
+  units = "cm",
+  dpi = res
+)
 ```
 
 

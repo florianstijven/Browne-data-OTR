@@ -34,9 +34,11 @@ pooled_inference_aggregated_rules_tbl %>%
       "Value Search Estimation" = "value search"
     ),
     aggregation = fct_recode(aggregation,
-                             "Mean Direction" = "Circular Mean")
+                             "Spherical Mean" = "Circular Mean"),
+    data = forcats::fct_relevel(data, "Original", "Artificial"),
+    aggregation = forcats::fct_relevel(aggregation, "Spherical Mean", "Rubin's Rules", "One-Size-Fits-All")
   ) %>%
-  ggplot(aes(y = aggregation, x = pooled_estimated_value, color = OTR_method)) +
+  ggplot(aes(y = imputation, x = pooled_estimated_value, color = OTR_method)) +
   geom_point(position = position_dodge(width = .3)) +
   geom_errorbarh(
     aes(
@@ -49,7 +51,7 @@ pooled_inference_aggregated_rules_tbl %>%
   xlab(latex2exp::TeX("Pooled Estimated Value, \\bar{\\nu}(\\tilde{d})")) +
   ylab("Aggregation Method") +
   scale_color_discrete(name = "OTR method") +
-  facet_grid(imputation~data) +
+  facet_grid(aggregation~data) +
   theme(legend.position = "bottom", 
         legend.title = element_blank()) +
   guides(color = guide_legend(nrow = 2))
@@ -72,7 +74,7 @@ pooled_inference_aggregated_rules_tbl %>%
     "Value Search Estimation" = "value search"
   ),
   aggregation = fct_recode(aggregation,
-                           "Mean Direction" = "Circular Mean")) %>%
+                           "Spherical Mean" = "Circular Mean")) %>%
   ggplot(aes(y = aggregation, x = pooled_estimated_value, color = OTR_method)) +
   geom_point(aes(fill = OTR_method), position = position_dodge(width = .3)) +
   geom_errorbarh(
