@@ -6,13 +6,13 @@ output:
   word_document:
     toc: yes
     number_sections: yes
+  html_document:
+    toc: yes
+    df_print: paged
   bookdown::html_document2:
     toc: yes
     toc_float: yes
     number_sections: yes
-  html_document:
-    toc: yes
-    df_print: paged
 ---
 
 
@@ -262,7 +262,7 @@ rubin_rules_aggregated = OTR_results %>%
 trivial_rules_tbl = expand_grid(
   imputation = c("Per Arm", "Global"),
   OTR_method = c("One-Size-Fits-All (0)", "One-Size-Fits-All (1)"),
-  update = 1:2
+  update = 1
 )
 trivial_rules_tbl = trivial_rules_tbl %>%
   left_join(

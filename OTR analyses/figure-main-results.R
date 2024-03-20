@@ -74,7 +74,8 @@ pooled_inference_aggregated_rules_tbl %>%
     "Value Search Estimation" = "value search"
   ),
   aggregation = fct_recode(aggregation,
-                           "Spherical Mean" = "Circular Mean")) %>%
+                           "Spherical Mean" = "Circular Mean"),
+  outcome = factor(outcome, c("cesd", "madrs", "vas", "sas", "famfun"))) %>%
   ggplot(aes(y = aggregation, x = pooled_estimated_value, color = OTR_method)) +
   geom_point(aes(fill = OTR_method), position = position_dodge(width = .3)) +
   geom_errorbarh(

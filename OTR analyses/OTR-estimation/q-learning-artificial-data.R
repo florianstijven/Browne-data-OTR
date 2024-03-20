@@ -10,22 +10,10 @@ library(forcats)
 imputed_data_file_update1_per_arm = "Multiple Imputation/Artificial Data for Illustrations/final_mi_updated1_per_arm.sas7bdat"
 imputed_data_file_update1_global = "Multiple Imputation/Artificial Data for Illustrations/final_mi_updated1_global.sas7bdat"
 
-imputed_data_file_update2_moderate = "Multiple Imputation/Artificial Data for Illustrations/final_mi_updated2_moderate.sas7bdat"
-imputed_data_file_update2_strong = "Multiple Imputation/Artificial Data for Illustrations/final_mi_updated2_strong.sas7bdat"
-
-imputed_data_file_update3_moderate = "Multiple Imputation/Artificial Data for Illustrations/final_mi_updated3_moderate.sas7bdat"
-imputed_data_file_update3_strong = "Multiple Imputation/Artificial Data for Illustrations/final_mi_updated3_strong.sas7bdat"
-
 saveto = "OTR analyses/OTR-estimation/"
 
 imputed_data_update1_per_arm = read.sas7bdat(imputed_data_file_update1_per_arm)
 imputed_data_update1_global = read.sas7bdat(imputed_data_file_update1_global)
-
-imputed_data_update2_moderate = read.sas7bdat(imputed_data_file_update2_moderate)
-imputed_data_update2_strong = read.sas7bdat(imputed_data_file_update2_strong)
-
-imputed_data_update3_moderate = read.sas7bdat(imputed_data_file_update3_moderate)
-imputed_data_update3_strong = read.sas7bdat(imputed_data_file_update3_strong)
 
 # Join the sets of imputed data sets while adding a variable that indicates the
 # type of imputation.
@@ -37,47 +25,7 @@ imputed_data = bind_rows(
   imputed_data_update1_global %>%
     mutate(imputation = "Global",
            outcome_model = "Correct",
-           update = 1L),
-  imputed_data_update2_moderate %>%
-    mutate(imputation = "Per Arm",
-           outcome_model = "Misspecified",
-           quadratic = "Moderate",
-           update = 2L),
-  imputed_data_update2_moderate %>%
-    mutate(imputation = "Per Arm",
-           outcome_model = "Correct",
-           quadratic = "Moderate",
-           update = 2L),
-  imputed_data_update2_strong %>%
-    mutate(imputation = "Per Arm",
-           outcome_model = "Misspecified",
-           quadratic = "Strong",
-           update = 2L),
-  imputed_data_update2_strong %>%
-    mutate(imputation = "Per Arm",
-           outcome_model = "Correct",
-           quadratic = "Strong",
-           update = 2L),
-  imputed_data_update3_moderate %>%
-    mutate(imputation = "Per Arm",
-           outcome_model = "Misspecified",
-           quadratic = "Moderate",
-           update = 3L),
-  imputed_data_update3_moderate %>%
-    mutate(imputation = "Per Arm",
-           outcome_model = "Correct",
-           quadratic = "Moderate",
-           update = 3L),
-  imputed_data_update3_strong %>%
-    mutate(imputation = "Per Arm",
-           outcome_model = "Misspecified",
-           quadratic = "Strong",
-           update = 3L),
-  imputed_data_update3_strong %>%
-    mutate(imputation = "Per Arm",
-           outcome_model = "Correct",
-           quadratic = "Strong",
-           update = 3L)
+           update = 1L)
 )
 
 # Drop third treatment arm.
@@ -163,7 +111,7 @@ imputed_data_long_6months = imputed_data_long %>%
 # respectively, the imputation number, outcome variable, imputation method,
 # outcome model, size of quadratic effect, and update version.
 imputed_data_reformatted = imputed_data_long_6months %>%
-  group_by(X_Imputation_, outcome, imputation, update, outcome_model, quadratic) %>%
+  group_by(X_Imputation_, outcome, imputation, update, outcome_model) %>%
   dplyr::summarise(data_set = list(pick(everything())))
 
 # The optimal treatment regime with q-learning is estimated. We start by
@@ -211,101 +159,35 @@ OTR_estimator = function(outcome,
 
 
 # Apply q-learning to each individual data set.
-results_tbl = bind_rows(
-  imputed_data_reformatted %>%
-    filter((update == 1L) |
-             ((update %in% c(2L, 3L)) & (outcome_model == "Misspecified")
-             )) %>%
-    mutate(regime = purrr::map(
-      .x = data_set,
-      .f = function(data,
+results_tbl = imputed_data_reformatted %>%
+  mutate(regime = purrr::map(
+    .x = data_set,
+    .f = function(data,
+                  main_covariates,
+                  cont_covariates,
+                  treatment) {
+      main_covariates = c(
+        "sex",
+        "past_MDD",
+        "current_MDD",
+        "phealth",
+        "age",
+        "madrs",
+        "sas",
+        "famfun",
+        "cesd",
+        "vas"
+      )
+      cont_covariates = c("sex", "age", "famfun", "cesd", "past_MDD")
+      treatment = "group_int"
+      OTR_estimator(data$change_score,
                     main_covariates,
                     cont_covariates,
-                    treatment) {
-        main_covariates = c(
-          "sex",
-          "past_MDD",
-          "current_MDD",
-          "phealth",
-          "age",
-          "madrs",
-          "sas",
-          "famfun",
-          "cesd",
-          "vas"
-        )
-        cont_covariates = c("sex", "age", "famfun", "cesd", "past_MDD")
-        treatment = "group_int"
-        OTR_estimator(data$change_score,
-                      main_covariates,
-                      cont_covariates,
-                      treatment,
-                      data)
-      }
-    )) %>%
-    select(-data_set),
-  imputed_data_reformatted %>%
-    filter((update == 2L) & (outcome_model == "Correct")) %>%
-    mutate(regime = purrr::map(
-      .x = data_set,
-      .f = function(data,
-                    main_covariates,
-                    cont_covariates,
-                    treatment) {
-        main_covariates = c(
-          "sex",
-          "past_MDD",
-          "current_MDD",
-          "phealth",
-          "age",
-          "age_sq",
-          "madrs",
-          "sas",
-          "famfun",
-          "cesd",
-          "vas"
-        )
-        cont_covariates = c("sex", "age", "famfun", "cesd", "past_MDD")
-        treatment = "group_int"
-        OTR_estimator(data$change_score,
-                      main_covariates,
-                      cont_covariates,
-                      treatment,
-                      data)
-      }
-    )),
-  imputed_data_reformatted %>%
-    filter((update == 3L) & (outcome_model == "Correct")) %>%
-    mutate(regime = purrr::map(
-      .x = data_set,
-      .f = function(data,
-                    main_covariates,
-                    cont_covariates,
-                    treatment) {
-        main_covariates = c(
-          "sex",
-          "past_MDD",
-          "current_MDD",
-          "phealth",
-          "age",
-          "cesd_sq",
-          "madrs",
-          "sas",
-          "famfun",
-          "cesd",
-          "vas"
-        )
-        cont_covariates = c("sex", "age", "famfun", "cesd", "past_MDD")
-        treatment = "group_int"
-        OTR_estimator(data$change_score,
-                      main_covariates,
-                      cont_covariates,
-                      treatment,
-                      data)
-      }
-    )) %>%
-    select(-data_set)
-)
+                    treatment,
+                    data)
+    }
+  )) %>%
+  select(-data_set)
   
 
 saveRDS(object = results_tbl, file = paste0(saveto, "OTR_q_results_update.rds"))

@@ -1,7 +1,7 @@
 /* Specify which directory contains the (processed) input data set. */
-%let input_directory = C:\Users\u0157247\OneDrive - KU Leuven\Phd\Hulp Trung Dung\Browne-code\Multiple Imputation\Artificial Data for Illustrations;
+%let input_directory = C:/Users/u0157247/Documents/Github repos/other repos/Browne-data-OTR/Multiple Imputation/Artificial Data for Illustrations;
 /* Specify which directory is to be used for output, i.e., to save the imputed data sets in. */
-%let output_directory = C:\Users\u0157247\OneDrive - KU Leuven\Phd\Hulp Trung Dung\Browne-code\Multiple Imputation\Artificial Data for Illustrations;
+%let output_directory = C:/Users/u0157247/Documents/Github repos/other repos/Browne-data-OTR/Multiple Imputation/Artificial Data for Illustrations;
 /* Specify the number of imputations */
 %let n_imputations = 40;
 /* Specify the number of burn-in iterations. 

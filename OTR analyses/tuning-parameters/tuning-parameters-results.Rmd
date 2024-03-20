@@ -3,8 +3,8 @@ title: "Evaluation of Tuning Parameters in the Genetic Algorithm"
 author: "Florian Stijven"
 date: "`r Sys.Date()`"
 output:
-  html_document: default
   word_document: default
+  html_document: default
 ---
 
 ```{r, echo=FALSE, message=FALSE, warning=FALSE}
@@ -455,7 +455,8 @@ OTR_tuning_parameters_tbl %>%
     range = c(60, 3, 60, 4, 100)
   )) %>%
   filter(multi_run >= 5) %>%
-  mutate(multi_run = factor(x = multi_run, levels = c(1L, 5L, 20L))) %>%
+  mutate(multi_run = factor(x = multi_run, levels = c(1L, 5L, 20L)),
+         outcome = factor(outcome, c("cesd", "madrs", "vas", "sas", "famfun"))) %>%
   ggplot(aes(x = X_Imputation_, y = estimated_value, color = as.factor(multi_run),
              shape = as.factor(population_size))) +
   geom_point() +
@@ -577,7 +578,8 @@ OTR_starting_values_tbl %>%
   mutate(starting_value = fct_recode(starting_value,
                                      "Q-learning" = "Q",
                                      "Random" = "random",
-                                     "Zero" = "zero")) %>%
+                                     "Zero" = "zero"),
+         outcome = factor(outcome, c("cesd", "madrs", "vas", "sas", "famfun"))) %>%
   ggplot(aes(
     x = X_Imputation_,
     y = estimated_value,
@@ -585,7 +587,7 @@ OTR_starting_values_tbl %>%
   )) +
   geom_point() +
   geom_line() +
-  facet_grid(rows = "outcome", scales = "free_y") +
+  facet_grid(outcome~., scales = "free_y") +
   scale_color_discrete(name = "Type of Starting Values") +
   xlab(latex2exp::TeX("Imputation Number, $m$")) +
   ylab(latex2exp::TeX("Estimated Value, $\\hat{\\nu}_m(\\hat{d}_m)$"))

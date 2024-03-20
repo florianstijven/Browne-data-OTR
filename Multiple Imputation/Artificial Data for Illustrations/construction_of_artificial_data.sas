@@ -1,7 +1,7 @@
 /* Specify which directory contains the (processed) input data set. */
-%let input_directory = C:/Users/u0157247/OneDrive - KU Leuven/Phd/Hulp Trung Dung/Browne-code/data preparation and exploration;
+%let input_directory = C:/Users/u0157247/Documents/Github repos/other repos/Browne-data-OTR/data preparation and exploration;
 /* Specify which directory is to be used for output, i.e., to save the updated data sets in. */
-%let output_directory = C:/Users/u0157247/OneDrive - KU Leuven/Phd/Hulp Trung Dung/Browne-code/Multiple Imputation/Artificial Data for Illustrations;
+%let output_directory = C:/Users/u0157247/Documents/Github repos/other repos/Browne-data-OTR/Multiple Imputation/Artificial Data for Illustrations;
 
 /* Set libref to the directory that contains the processed data set with missing values.*/
 libname indata "&input_directory";
