@@ -905,7 +905,7 @@ OTR_results %>%
     columns = c(9, 10, 13, 12, 11),
     upper = NULL,
     lower = list(continuous = GGally::wrap("points", alpha = 0.25)),
-    diag = list(continuous = GGally::wrap("densityDiag", alpha = 0.25)),
+    diag = list(continuous = GGally::wrap("densityDiag", alpha = 0.50)),
     mapping = aes(color = `OTR method`),
     legend = 1
   ) +

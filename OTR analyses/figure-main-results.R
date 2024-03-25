@@ -35,7 +35,8 @@ pooled_inference_aggregated_rules_tbl %>%
     ),
     aggregation = fct_recode(aggregation,
                              "Spherical Mean" = "Circular Mean"),
-    data = forcats::fct_relevel(data, "Original", "Artificial"),
+    data = forcats::fct_recode(data, "Original Data" = "Original", "Modified Data" = "Artificial"),
+    data = forcats::fct_relevel(data, "Original Data", "Modified Data"),
     aggregation = forcats::fct_relevel(aggregation, "Spherical Mean", "Rubin's Rules", "One-Size-Fits-All")
   ) %>%
   ggplot(aes(y = imputation, x = pooled_estimated_value, color = OTR_method)) +
@@ -49,7 +50,7 @@ pooled_inference_aggregated_rules_tbl %>%
     position = position_dodge(width = .3),
   ) +
   xlab(latex2exp::TeX("Pooled Estimated Value, \\bar{\\nu}(\\tilde{d})")) +
-  ylab("Aggregation Method") +
+  ylab("Imputation Method") +
   scale_color_discrete(name = "OTR method") +
   facet_grid(aggregation~data) +
   theme(legend.position = "bottom", 
