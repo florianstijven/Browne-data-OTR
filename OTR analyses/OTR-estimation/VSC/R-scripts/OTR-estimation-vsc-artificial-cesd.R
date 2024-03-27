@@ -17,9 +17,6 @@ library(rgenoud)
 # Specify location of data files needed further on.
 imputed_data_file_update1_per_arm = "/data/leuven/351/vsc35197/OTR/Browne/Multiple Imputation/Artificial Data for Illustrations/final_mi_updated1_per_arm.sas7bdat"
 imputed_data_file_update1_global = "/data/leuven/351/vsc35197/OTR/Browne/Multiple Imputation/Artificial Data for Illustrations/final_mi_updated1_global.sas7bdat"
-imputed_data_file_update2_per_arm = "/data/leuven/351/vsc35197/OTR/Browne/Multiple Imputation/Artificial Data for Illustrations/final_mi_updated2_per_arm.sas7bdat"
-imputed_data_file_update3_per_arm = "/data/leuven/351/vsc35197/OTR/Browne/Multiple Imputation/Artificial Data for Illustrations/final_mi_updated3_per_arm.sas7bdat"
-
 saveto = "/data/leuven/351/vsc35197/OTR/Browne/"
 # Specify options for parallel computations.
 ncores = 36
@@ -30,8 +27,6 @@ source(file = "/data/leuven/351/vsc35197/OTR/Browne/OTR_estimator.R")
 
 imputed_data_update1_per_arm = read.sas7bdat(imputed_data_file_update1_per_arm)
 imputed_data_update1_global = read.sas7bdat(imputed_data_file_update1_global)
-imputed_data_update2_per_arm = read.sas7bdat(imputed_data_file_update2_per_arm)
-imputed_data_update3_per_arm = read.sas7bdat(imputed_data_file_update3_per_arm)
 
 # Join the sets of imputed data sets while adding a variable that indicates the
 # type of imputation.
@@ -41,13 +36,7 @@ imputed_data = bind_rows(
            update = 1L),
   imputed_data_update1_global %>%
     mutate(imputation = "Global",
-           update = 1L),
-  imputed_data_update2_per_arm %>%
-    mutate(imputation = "Per Arm",
-           update = 2L),
-  imputed_data_update3_per_arm %>%
-    mutate(imputation = "Per Arm",
-           update = 3L),
+           update = 1L)
 )
 
 # Drop third treatment arm.

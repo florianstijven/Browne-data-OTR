@@ -7,6 +7,8 @@
 #SBATCH --mail-type=BEGIN,END,FAIL
 #SBATCH -A lp_doctoralresearch
 
+export OMP_NUM_THREADS=1
+
 module unuse /apps/leuven/skylake/2018a/modules/all
 module use /apps/leuven/skylake/2021a/modules/all
 
@@ -16,6 +18,3 @@ module load CMake
 module load R
 
 Rscript OTR-estimation-vsc-artificial-cesd.R cesd
-
-
-
