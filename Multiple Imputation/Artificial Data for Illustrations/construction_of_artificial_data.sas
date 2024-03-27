@@ -32,7 +32,7 @@ if cesd2 ^= . then
 	do; 
 		if group = 2 then 
 			do;
-				cesd2 = cesd2 - 0.30 * (cesd - 40);
+				cesd2 = cesd2 - 0.70 * (cesd - 40) - 6;
 				if disorder = 2 or disorder = 4 then 
 					cesd2 = cesd2 - 6;
 			end;

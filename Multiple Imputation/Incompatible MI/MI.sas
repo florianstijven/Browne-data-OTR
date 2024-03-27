@@ -1,7 +1,7 @@
 /* Specify which directory contains the (processed) input data set. */
-%let input_directory = C:/Users/u0157247/OneDrive - KU Leuven/Phd/Hulp Trung Dung/Browne-code/data preparation and exploration;
+%let input_directory = C:/Users/u0157247/Documents/Github repos/other repos/Browne-data-OTR/data preparation and exploration;
 /* Specify which directory is to be used for output, i.e., to save the imputed data sets in. */
-%let output_directory = C:/Users/u0157247/OneDrive - KU Leuven/Phd/Hulp Trung Dung/Browne-code/Multiple Imputation/Incompatible MI;
+%let output_directory = C:/Users/u0157247/Documents/Github repos/other repos/Browne-data-OTR/Multiple Imputation/Incompatible MI;
 /* Specify the number of imputations */
 %let n_imputations = 200;
 /* Specify the number of burn-in iterations. 
@@ -40,6 +40,7 @@ For all imputations, logistic models are used for categorical variables. For phe
 This ensures that the following logistic transformation does not lead to infinite values. */
 data final_transformed;
 set final;
+where group ^= 3; *Only use the treatment arms that are used further on.;
 madrsv1 = madrsv1*100/60 + 1; madrst2 = madrst2*100/60 + 1; madrst3 = madrst3*100/60 + 1; madrst4 = madrst4*100/60 + 1;
 cesd = cesd*100/60 + 1; cesd2 = cesd2*100/60 + 1; cesd3 = cesd3*100/60 + 1; cesd4 = cesd4*100/60 + 1;
 vas = vas + 1; vas2 = vas2 + 1; vas3 = vas3 + 1; vas4 = vas4 + 1;
@@ -57,7 +58,7 @@ ods graphics on;
 proc mi data=final_transformed out=final_MI_incompatible nimpute=&n_imputations seed=1;		
 	class group sex disorder phealth;
 	fcs nbiter=&n_burnin plots=trace reg() logistic() logistic(disorder/link=glogit);
-	var group sex disorder phealth age numchild
+	var group sex disorder phealth age
 		madrsv1 madrst2 madrst3 madrst4
 		cesd cesd2 cesd3 cesd4
 		vas vas2 vas3 vas4
@@ -68,8 +69,7 @@ logit(madrsv1 madrst2 madrst3 madrst4
 	  cesd cesd2 cesd3 cesd4
 	  vas vas2 vas3 vas4
 	  sasb sasb2 sasb3 sasb4
-	  famfun famfun2 famfun3 famfun4 / c = 102) 
-log(numchild / c = 0.5);
+	  famfun famfun2 famfun3 famfun4 / c = 102);
 run;
 ods graphics off;
 
@@ -117,7 +117,6 @@ if sasb > 5 then sasb = 5; if sasb2 > 5 then sasb2 = 5; if sasb3 > 5 then sasb3 
 if famfun < 1 then famfun = 1; if famfun2 < 1 then famfun2 = 1; if famfun3 < 1 then famfun3 = 1; if famfun4 < 1 then famfun4 = 1;
 if famfun > 4 then famfun = 4; if famfun2 > 4 then famfun2 = 4; if famfun3 > 4 then famfun3 = 4; if famfun4 > 4 then famfun4 = 4;
 
-numchild = round(numchild, 1);
 run;
 
 proc means data=final_MI_incompatible nmiss min max mean;

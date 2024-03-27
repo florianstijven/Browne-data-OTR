@@ -29,6 +29,7 @@ For all imputations, logistic models are used for categorical variables. For phe
 This ensures that the following logistic transformation does not lead to infinite values. */
 data final_updated_transformed1;
 set final_updated1;
+where group ^= 3;
 madrsv1 = madrsv1*100/60 + 1; madrst2 = madrst2*100/60 + 1; madrst3 = madrst3*100/60 + 1; madrst4 = madrst4*100/60 + 1;
 cesd = cesd*100/60 + 1; cesd2 = cesd2*100/60 + 1; cesd3 = cesd3*100/60 + 1; cesd4 = cesd4*100/60 + 1;
 vas = vas + 1; vas2 = vas2 + 1; vas3 = vas3 + 1; vas4 = vas4 + 1;
@@ -42,7 +43,7 @@ proc mi data=final_updated_transformed1 out=final_MI_1_updated1 nimpute=&n_imput
 	where group = 1;
 	class sex disorder phealth;
 	fcs nbiter=&n_burnin plots=trace reg() logistic() logistic(disorder/link=glogit);
-	var sex disorder phealth age numchild
+	var sex disorder phealth age
 		madrsv1 madrst2 madrst3 madrst4
 		cesd cesd2 cesd3 cesd4
 		vas vas2 vas3 vas4
@@ -54,8 +55,7 @@ logit(madrsv1 madrst2 madrst3 madrst4
 	  cesd cesd2 cesd3 cesd4
 	  vas vas2 vas3 vas4
 	  sasb sasb2 sasb3 sasb4
-	  famfun famfun2 famfun3 famfun4 / c = 102) 
-log(numchild / c = 0.5);
+	  famfun famfun2 famfun3 famfun4 / c = 102);
 run;
 ods graphics off;
 
@@ -66,7 +66,7 @@ proc mi data=final_updated_transformed1 out=final_MI_2_updated1 nimpute=&n_imput
 	where group = 2;
 	class sex disorder phealth;
 	fcs nbiter=&n_burnin plots=trace reg() logistic() logistic(disorder/link=glogit);
-	var sex disorder phealth age numchild
+	var sex disorder phealth age
 		madrsv1 madrst2 madrst3 madrst4
 		cesd cesd2 cesd3 cesd4
 		vas vas2 vas3 vas4
@@ -78,38 +78,14 @@ logit(madrsv1 madrst2 madrst3 madrst4
 	  cesd cesd2 cesd3 cesd4
 	  vas vas2 vas3 vas4
 	  sasb sasb2 sasb3 sasb4
-	  famfun famfun2 famfun3 famfun4 / c = 102) 
-log(numchild / c = 0.5);
-run;
-ods graphics off;
-
-/* Proc MI: For group = 3 */
-ods graphics on;
-proc mi data=final_updated_transformed1 out=final_MI_3_updated1 nimpute=&n_imputations seed=1;		
-	where group = 3;
-	class sex disorder phealth;
-	fcs nbiter=&n_burnin plots=trace reg() logistic() logistic(disorder/link=glogit);
-	var sex disorder phealth age numchild
-		madrsv1 madrst2 madrst3 madrst4
-		cesd cesd2 cesd3 cesd4
-		vas vas2 vas3 vas4
-		sasb sasb2 sasb3 sasb4
-		famfun famfun2 famfun3 famfun4;
-
-transform 
-logit(madrsv1 madrst2 madrst3 madrst4
-	  cesd cesd2 cesd3 cesd4
-	  vas vas2 vas3 vas4
-	  sasb sasb2 sasb3 sasb4
-	  famfun famfun2 famfun3 famfun4 / c = 102) 
-log(numchild / c = 0.5);
+	  famfun famfun2 famfun3 famfun4 / c = 102);
 run;
 ods graphics off;
 
 /* The imputed data sets are joined into a single data set. */
 
 data final_MI_updated1;
-	set final_MI_1_updated1 final_MI_2_updated1 final_MI_3_updated1;
+	set final_MI_1_updated1 final_MI_2_updated1;
 run;
 
 
@@ -151,7 +127,6 @@ if sasb > 5 then sasb = 5; if sasb2 > 5 then sasb2 = 5; if sasb3 > 5 then sasb3 
 if famfun < 1 then famfun = 1; if famfun2 < 1 then famfun2 = 1; if famfun3 < 1 then famfun3 = 1; if famfun4 < 1 then famfun4 = 1;
 if famfun > 4 then famfun = 4; if famfun2 > 4 then famfun2 = 4; if famfun3 > 4 then famfun3 = 4; if famfun4 > 4 then famfun4 = 4;
 
-numchild = round(numchild, 1);
 run;
 
 
