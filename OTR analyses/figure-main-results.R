@@ -49,7 +49,7 @@ pooled_inference_aggregated_rules_tbl %>%
     height = 0.2,
     position = position_dodge(width = .3),
   ) +
-  xlab(latex2exp::TeX("Pooled Estimated Value, \\bar{\\nu}(\\tilde{d})")) +
+  xlab(latex2exp::TeX("Pooled Estimated Value, \\bar{\\hat{\\nu}}(\\tilde{d})")) +
   ylab("Imputation Method") +
   scale_color_discrete(name = "OTR method") +
   facet_grid(aggregation~data) +
@@ -76,6 +76,7 @@ pooled_inference_aggregated_rules_tbl %>%
   ),
   aggregation = fct_recode(aggregation,
                            "Spherical Mean" = "Circular Mean"),
+  aggregation = fct_relevel(aggregation, c("One-Size-Fits-All", "Rubin's Rules", "Spherical Mean")),
   outcome = factor(outcome, c("cesd", "madrs", "vas", "sas", "famfun"))) %>%
   ggplot(aes(y = aggregation, x = pooled_estimated_value, color = OTR_method)) +
   geom_point(aes(fill = OTR_method), position = position_dodge(width = .3)) +
@@ -87,8 +88,8 @@ pooled_inference_aggregated_rules_tbl %>%
     height = 0.2,
     position = position_dodge(width = .3),
   ) +
-  xlab(latex2exp::TeX("Pooled Estimated Value, \\bar{\\nu}(\\tilde{d})")) +
-  ylab("Aggregation Method") +
+  xlab(latex2exp::TeX("Pooled Estimated Value, \\bar{\\hat{\\nu}}(\\tilde{d})")) +
+  ylab(NULL) +
   scale_color_discrete(name = "OTR method") +
   scale_fill_discrete(name = "OTR method") +
   facet_grid(~ outcome, scales = "free") +
