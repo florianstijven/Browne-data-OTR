@@ -11,7 +11,7 @@
 
 <meta name="author" content="Florian Stijven" />
 
-<meta name="date" content="2024-03-27" />
+<meta name="date" content="2024-07-02" />
 
 <title>MNAR Sensitivity Analyses</title>
 
@@ -1468,7 +1468,7 @@ border-radius: 0px;
 
 <h1 class="title toc-ignore">MNAR Sensitivity Analyses</h1>
 <h4 class="author">Florian Stijven</h4>
-<h4 class="date">2024-03-27</h4>
+<h4 class="date">2024-07-02</h4>
 
 </div>
 
@@ -1636,7 +1636,8 @@ treatment contrasts, that is,
 In practice, we can only estimate these contrasts. We consider two estimators.</p>
 <ol style="list-style-type: decimal">
 <li>Outcome regression-based. This estimator is derived from the outcome
-regression estimator for the value of a fixed regime. Let <span class="math inline">\(\mu_{a}(x_i; \hat{\beta}) = E(Y|X = x_i, A = a; \hat{\beta})\)</span> be the estimated regression
+regression estimator for the value of a fixed regime. Let <span class="math inline">\(\mu_{a}(x_i;
+\hat{\beta}) = E(Y|X = x_i, A = a; \hat{\beta})\)</span> be the estimated regression
 function (that was also used for Q-learning). The contrast is then estimated as
 <span class="math display">\[\hat{C}_{i, OR} = \mu_{1}(x_i; \hat{\beta}) - \mu_{0}(x_i; \hat{\beta}).\]</span></li>
 <li>AIPWE-based. This estimator is derived from the AIPW estimator for the value

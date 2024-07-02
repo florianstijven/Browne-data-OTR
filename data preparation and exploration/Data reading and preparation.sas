@@ -191,6 +191,10 @@ run;
 birth date. So, age can in principle be derived from the second one. We proceed with the IDP data instead
 of the ZOT1 data. */
 
+proc sort data=idp;
+by id;
+run;
+
 /* Join all four data sets on id. */
 data browne;
 	merge idp zot2 zot3 zot4;
@@ -202,6 +206,12 @@ follow up in each treatment group. */
 proc freq data=browne;
 	where madrst2 ^=.;
 	table group;
+run;
+
+/* Print the data by the i1done variable, i.e., by whether patients started treatment. This reveals that patients that did not start treatment
+have most baseline variables missing except the basic ones like age and sex. */
+proc print data=browne;
+where i1done=0;
 run;
 
 /* Check who done first time point (baseline). 44 patients were randomized, but did not receive any treatment and follow up.*/

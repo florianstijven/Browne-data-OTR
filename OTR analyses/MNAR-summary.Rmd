@@ -965,7 +965,9 @@ allocation_tbl %>%
 # accordingly.
 allocation_tbl %>%
   filter(data == "Original") %>%
-  mutate(shift_cesd = paste0("bar(Delta)[MNAR] ==", round(shift_cesd, 1))) %>%
+  mutate(shift_cesd_cat = paste0("bar(Delta)[MNAR] ==", round(shift_cesd, 1))) %>%
+  arrange(shift_cesd) %>%
+  mutate(shift_cesd_cat = forcats::fct_inorder(shift_cesd_cat)) %>%
   ggplot(aes(
     x = abs(C_hat_or),
     group = ifelse(different_classification == "Same Classification", "A", "B"),
@@ -982,7 +984,7 @@ allocation_tbl %>%
   ) +
   scale_fill_discrete(name = "Differential classification",
                       direction = 1) +
-  facet_wrap(~ shift_cesd, labeller = label_parsed) +
+  facet_wrap(~ shift_cesd_cat, labeller = label_parsed) +
   theme(legend.position = "bottom",
         legend.title = element_blank())
 ggsave(
