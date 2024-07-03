@@ -58,8 +58,8 @@ pooled_inference_aggregated_rules_tbl %>%
   guides(color = guide_legend(nrow = 2))
   
 # Save figure.
-ggsave(filename = "figures-manuscript/main-text/estimated-values-aggregated.png",
-       device = "png",
+ggsave(filename = "figures-manuscript/main-text/estimated-values-aggregated.pdf",
+       device = "pdf",
        width = double_width,
        height = double_height,
        units = "cm",
@@ -104,8 +104,8 @@ pooled_inference_aggregated_rules_tbl %>%
   ) +
   guides(color = guide_legend(nrow = 2))
 
-ggsave(filename = "figures-manuscript/supplementary-information/results-various-aggregation-methods-all-outcomes.png",
-       device = "png",
+ggsave(filename = "figures-manuscript/supplementary-information/results-various-aggregation-methods-all-outcomes.pdf",
+       device = "pdf",
        width = double_width,
        height = double_height,
        units = "cm",

@@ -909,12 +909,13 @@ OTR_results %>%
     mapping = aes(color = `OTR method`),
     legend = 1
   ) +
+  geom_vline(xintercept = 0, alpha = 0.25) +
   scale_x_continuous(n.breaks = 4, guide = guide_axis(n.dodge = 2)) +
   theme(legend.position = "bottom",
         legend.title = element_blank())
 ggsave(
-  filename = "figures-manuscript/main-text/between-imputation-pm-estimates.png",
-  device = "png",
+  filename = "figures-manuscript/main-text/between-imputation-pm-estimates.pdf",
+  device = "pdf",
   width = double_width,
   height = double_height,
   units = "cm",

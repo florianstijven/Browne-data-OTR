@@ -635,8 +635,8 @@ pooled_inference_aggregated_rules_tbl %>%
         legend.title = element_blank(),
         legend.box.margin = margin(l = -10)) #+
   #guides(color = guide_legend(nrow = 2))
-ggsave(filename = "figures-manuscript/main-text/mnar-estimated-values.png",
-       device = "png",
+ggsave(filename = "figures-manuscript/main-text/mnar-estimated-values.pdf",
+       device = "pdf",
        width = single_width,
        height = single_height,
        units = "cm",
@@ -860,8 +860,8 @@ classification_aggregated_rules_tbl %>%
   geom_line() +
   xlab(latex2exp::TeX("$\\bar{\\Delta}_{MNAR}$")) +
   ylab("Cohen's kappa")
-ggsave(filename = "figures-manuscript/main-text/mnar-cohen-kappa.png",
-       device = "png",
+ggsave(filename = "figures-manuscript/main-text/mnar-cohen-kappa.pdf",
+       device = "pdf",
        width = single_width,
        height = single_height,
        units = "cm",
@@ -988,8 +988,8 @@ allocation_tbl %>%
   theme(legend.position = "bottom",
         legend.title = element_blank())
 ggsave(
-  filename = "figures-manuscript/main-text/mnar-distribution-contrasts.png",
-  device = "png",
+  filename = "figures-manuscript/main-text/mnar-distribution-contrasts.pdf",
+  device = "pdf",
   width = double_width,
   height = double_height,
   units = "cm",
