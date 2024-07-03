@@ -126,6 +126,19 @@ imputed, there should be no missing values left. We also check whether the range
 proc means data=final_MI nmiss min max mean;
 run;
 
+/* Compute the proportion of imputed cesd2 values that are outside the CESD bounds */
+data temp;
+set final_mi;
+cesd2_out = 0;
+if cesd2 < 0 then cesd2_out = 1; if cesd2 > 60 then cesd2_out = 1;
+run;
+
+/* 0.06% of all CESD values are outside the bounds after imputation. Given that 45 out of 453 of the cesd2 values
+are missing, (453/45) * 0.06 % = 0.6% of the cesd2 values were imputed outside the bounds. */ 
+proc means data=temp min max mean;
+var cesd2_out;
+run; 
+
 /* Further post-processing to ensure that the scale restrictions are satisfied for all imputed values. */
 data final_MI;
 set final_MI;
