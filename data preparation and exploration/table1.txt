@@ -1,0 +1,28 @@
+\setlength{\LTpost}{0mm}
+\begin{longtable}{lcc}
+\toprule
+\textbf{Characteristic} & \textbf{Sertraline alone}, N = 215\textsuperscript{\textit{1}} & \textbf{Sertraline and IPT}, N = 238\textsuperscript{\textit{1}} \\ 
+\midrule\addlinespace[2.5pt]
+sex\_female & 143 (67\%) & 158 (66\%) \\ 
+age & 43 (34, 49) & 39 (32, 48) \\ 
+Present MDD & 81 (38\%) & 99 (42\%) \\ 
+Past MDD & 118 (55\%) & 117 (49\%) \\ 
+phealth &  &  \\ 
+    1 & 18 (8.4\%) & 25 (11\%) \\ 
+    2 & 67 (31\%) & 79 (33\%) \\ 
+    3 & 91 (42\%) & 83 (35\%) \\ 
+    4 & 33 (15\%) & 40 (17\%) \\ 
+    5 & 6 (2.8\%) & 11 (4.6\%) \\ 
+cesd & 27 (19, 37) & 30 (22, 38) \\ 
+madrsv1 & 25 (21, 29) & 26 (22, 30) \\ 
+vas & 38 (25, 50) & 32 (22, 49) \\ 
+    Unknown & 1 & 0 \\ 
+sasb & 1.97 (1.72, 2.29) & 2.03 (1.83, 2.35) \\ 
+famfun & 2.25 (1.83, 2.67) & 2.17 (1.92, 2.58) \\ 
+    Unknown & 2 & 2 \\ 
+\bottomrule
+\end{longtable}
+\begin{minipage}{\linewidth}
+\textsuperscript{\textit{1}}n (\%); Median (IQR)\\
+\end{minipage}
+
