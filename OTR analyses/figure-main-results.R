@@ -34,6 +34,8 @@ pooled_inference_aggregated_rules_tbl %>%
       "Sertraline + IPT" = "One-Size-Fits-All (1)",
       "Value Search Estimation" = "value search"
     ),
+    OTR_method = fct_relevel(OTR_method, 
+                             c("Sertraline", "Value Search Estimation", "Sertraline + IPT", "Q-learning")),
     aggregation = fct_recode(aggregation,
                              "Spherical Mean" = "Circular Mean"),
     data = forcats::fct_recode(data, "Original Data" = "Original", "Modified Data" = "Artificial"),
@@ -75,6 +77,8 @@ pooled_inference_aggregated_rules_tbl %>%
     "Sertraline + IPT" = "One-Size-Fits-All (1)",
     "Value Search Estimation" = "value search"
   ),
+  OTR_method = fct_relevel(OTR_method, 
+                           c("Sertraline", "Value Search Estimation", "Sertraline + IPT", "Q-learning")),
   aggregation = fct_recode(aggregation,
                            "Spherical Mean" = "Circular Mean"),
   aggregation = fct_relevel(aggregation, c("One-Size-Fits-All", "Rubin's Rules", "Spherical Mean")),
