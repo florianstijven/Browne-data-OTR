@@ -3,12 +3,12 @@ title: "Estimation of Optimal Treatment Regimes in the Browne Data"
 author: "Florian Stijven"
 date: "`r Sys.Date()`"
 output:
+  bookdown::word_document2:
+    toc: true
+    number_sections: true
   bookdown::html_document2:
     toc: true
     toc_float: true
-    number_sections: true
-  bookdown::word_document2:
-    toc: true
     number_sections: true
 ---
 
@@ -23,6 +23,7 @@ double_width = 14
 single_height = 8.2
 double_height = 12.8
 res = 600
+ggplot2::theme_set(ggplot2::theme_bw())
 # Load packages
 library(DynTxRegime)
 library(tidyverse)

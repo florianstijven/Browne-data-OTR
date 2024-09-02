@@ -7,6 +7,7 @@ double_width = 14
 single_height = 8.2
 double_height = 12.8
 res = 600
+ggplot2::theme_set(ggplot2::theme_bw())
 
 library(tidyverse)
 
@@ -51,7 +52,7 @@ pooled_inference_aggregated_rules_tbl %>%
   ) +
   xlab(latex2exp::TeX("Pooled Estimated Value, \\bar{\\hat{\\nu}}(\\tilde{d})")) +
   ylab("Imputation Method") +
-  scale_color_discrete(name = "OTR method") +
+  scale_color_viridis_d(name = "OTR method") +
   facet_grid(aggregation~data) +
   theme(legend.position = "bottom", 
         legend.title = element_blank()) +
@@ -90,8 +91,8 @@ pooled_inference_aggregated_rules_tbl %>%
   ) +
   xlab(latex2exp::TeX("Pooled Estimated Value, \\bar{\\hat{\\nu}}(\\tilde{d})")) +
   ylab(NULL) +
-  scale_color_discrete(name = "OTR method") +
-  scale_fill_discrete(name = "OTR method") +
+  scale_color_viridis_d(name = "OTR method") +
+  scale_fill_viridis_d(name = "OTR method") +
   facet_grid(~ outcome, scales = "free") +
   theme(
     axis.text.y = element_text(

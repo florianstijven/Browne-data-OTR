@@ -25,6 +25,7 @@ knitr::opts_chunk$set(echo = FALSE,
 library(DynTxRegime)
 library(tidyverse)
 library(sas7bdat)
+ggplot2::theme_set(ggplot2::theme_bw())
 # Specify file locations.
 OTR_vs_file_1 = "OTR analyses/OTR-estimation/VSC/results/OTR_artificial_results_cesd.rds"
 OTR_q_file = "OTR analyses/OTR-estimation/OTR_q_results_update.rds"
