@@ -613,35 +613,56 @@ pooled_inference_aggregated_rules_tbl %>%
 pooled_inference_aggregated_rules_tbl %>%
   filter(aggregation %in% c("Circular Mean", "One-Size-Fits-All"),
          data == "Original") %>%
-  mutate(OTR_method = fct_recode(
+  mutate(
+    OTR_method = fct_recode(
+      OTR_method,
+      Sertraline = "One-Size-Fits-All (0)",
+      "Sertraline + IPT" = "One-Size-Fits-All (1)"
+    )
+  ) %>%
+  mutate(OTR_method = forcats::fct_expand(
     OTR_method,
-    Sertraline = "One-Size-Fits-All (0)",
-    "Sertraline + IPT" = "One-Size-Fits-All (1)"
-  )) %>%
+    c("Value Search Estimation")),
+    OTR_method = fct_relevel(
+      OTR_method,
+      c(
+        "Q-learning",
+        "Sertraline",
+        "Value Search Estimation",
+        "Sertraline + IPT"
+      )
+    )
+  ) %>%
   ggplot(aes(x = shift_cesd, y = pooled_estimated_value, color = OTR_method)) +
-  geom_point(aes(fill = OTR_method), position = position_dodge(1.5)) +
+  geom_point(aes(color = OTR_method), position = position_dodge(1.5)) +
   geom_errorbar(
     aes(
       ymin = pooled_estimated_value - 1.96 * sqrt(pooled_total_variance),
       ymax = pooled_estimated_value + 1.96 * sqrt(pooled_total_variance)
     ),
-    height = 0.3,
     position = position_dodge(1.5),
   ) +
   ylab(latex2exp::TeX("Pooled Estimated Value, $\\bar{\\nu}(\\tilde{d})")) +
   xlab(latex2exp::TeX("$\\bar{\\Delta}_{MNAR}$")) +
-  scale_color_viridis_d(name = "OTR method") +
-  scale_fill_viridis_d(name = "OTR method") +
-  theme(legend.position = "bottom", 
-        legend.title = element_blank(),
-        legend.box.margin = margin(l = -10)) #+
-  #guides(color = guide_legend(nrow = 2))
-ggsave(filename = "figures-manuscript/main-text/mnar-estimated-values.pdf",
-       device = "pdf",
-       width = single_width,
-       height = single_height,
-       units = "cm",
-       dpi = res)
+  scale_color_viridis_d(
+    name = "OTR method",
+    drop = FALSE,
+    breaks = c("Sertraline", "Sertraline + IPT", "Q-learning")
+  ) +
+  theme(
+    legend.position = "bottom",
+    legend.title = element_blank(),
+    legend.box.margin = margin(l = -10)
+  ) #+
+#guides(color = guide_legend(nrow = 2))
+ggsave(
+  filename = "figures-manuscript/main-text/mnar-estimated-values.pdf",
+  device = "pdf",
+  width = single_width,
+  height = single_height,
+  units = "cm",
+  dpi = res
+)
 ```
 
 
@@ -983,8 +1004,7 @@ allocation_tbl %>%
       "Absolute Value of Estimated Patient-Level Contrast, $|\\hat{C}_{i}|$"
     )
   ) +
-  scale_fill_discrete(name = "Differential classification",
-                      direction = 1) +
+  scale_fill_viridis_d(name = "Differential classification") +
   facet_wrap(~ shift_cesd_cat, labeller = label_parsed) +
   theme(legend.position = "bottom",
         legend.title = element_blank())

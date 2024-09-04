@@ -3,8 +3,8 @@ title: "Evaluation of Tuning Parameters in the Genetic Algorithm"
 author: "Florian Stijven"
 date: "`r Sys.Date()`"
 output:
-  word_document: default
   html_document: default
+  word_document: default
 ---
 
 ```{r, echo=FALSE, message=FALSE, warning=FALSE}
@@ -387,7 +387,7 @@ OTR_tuning_parameters_tbl %>%
   # geom_line() +
   facet_grid(outcome~Imputation, scales = "free_y", ) +
   scale_y_continuous(n.breaks = 4) +
-  scale_color_viridis_d(name = "Population Size", begin = 0, end = 0.8, option = "mako", direction = -1) +
+  scale_color_viridis_d(name = "Population Size", begin = 0.15, end = 0.9, option = "mako", direction = -1) +
   # scale_shape_discrete(name = "Population Size") +
   xlab("Number of Independent Runs") + 
   ylab(latex2exp::TeX("Estimated Value, $\\hat{\\nu}_m(\\hat{d}_m)$")) +

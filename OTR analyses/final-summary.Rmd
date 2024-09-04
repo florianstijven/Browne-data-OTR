@@ -854,10 +854,8 @@ OTR_results %>%
 # Scatter plot for CESD.
 OTR_results %>%
   filter(outcome == "cesd", imputation == "Per Arm") %>%
-  mutate(norm = sqrt(
-    constant ^ 2 + sex ^ 2 + age ^ 2 + cesd ^ 2 + famfun ^ 2 + past_MDD ^
-      2
-  )) %>%
+  mutate(norm = sqrt(constant ^ 2 + sex ^ 2 + age ^ 2 + cesd ^ 2 + famfun ^ 2 + past_MDD ^
+                       2)) %>%
   # Divide the regime parameters by the norm.
   mutate(
     constant = constant / norm,
@@ -880,7 +878,7 @@ OTR_results %>%
 
 ```{r, results='hide', fig.show='hide'}
 # Reproduce a new version of the previous figure for inclusion in the
-# manuscript. 
+# manuscript.
 OTR_results %>%
   filter(outcome == "cesd", imputation == "Per Arm") %>%
   mutate(
@@ -890,7 +888,9 @@ OTR_results %>%
       OTR_method == "value search",
       "Value Search Estimation",
       OTR_method
-    )
+    ),
+    OTR_method = as.factor(OTR_method),
+    OTR_method = forcats::fct_expand(OTR_method, c("Sertraline", "Sertraline + IPT"))
   ) %>%
   # Divide the regime parameters by the norm.
   mutate(
@@ -901,6 +901,15 @@ OTR_results %>%
     cesd = cesd / norm,
     past_MDD = past_MDD / norm
   ) %>%
+  mutate(OTR_method = fct_relevel(
+    OTR_method,
+    c(
+      "Q-learning",
+      "Sertraline",
+      "Value Search Estimation",
+      "Sertraline + IPT"
+    )
+  )) %>%
   rename(`OTR method` = OTR_method, `past MDD` = past_MDD) %>%
   GGally::ggpairs(
     columns = c(9, 10, 13, 12, 11),
@@ -912,8 +921,11 @@ OTR_results %>%
   ) +
   geom_vline(xintercept = 0, alpha = 0.25) +
   scale_x_continuous(n.breaks = 4, guide = guide_axis(n.dodge = 2)) +
-  theme(legend.position = "bottom",
-        legend.title = element_blank())
+  scale_color_viridis_d(drop = FALSE,
+                        breaks = c("Q-learning", "Value Search Estimation")) +
+  scale_fill_viridis_d(drop = FALSE,
+                       breaks = c("Q-learning", "Value Search Estimation")) +
+  theme(legend.position = "bottom", legend.title = element_blank())
 ggsave(
   filename = "figures-manuscript/main-text/between-imputation-pm-estimates.pdf",
   device = "pdf",
