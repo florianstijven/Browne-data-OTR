@@ -616,10 +616,10 @@ OTR_starting_values_tbl %>%
   ) %>%
   # We only use the first four imputations for this plot.
   filter(X_Imputation_ <= 4) %>%
-  ggplot(aes(x = Imputation, y = estimated_value, color = starting_value)) +
-  geom_point(position = position_dodge(width = 0.4)) +
+  ggplot(aes(x = 0, y = estimated_value, color = starting_value)) +
+  geom_point(position = position_dodge(width = 0.5)) +
   # geom_line() +
-  facet_grid(outcome~., scales = "free_y", ) +
+  facet_grid(outcome~Imputation, scales = "free_y", ) +
   scale_x_discrete() +
   scale_y_continuous(n.breaks = 4) +
   scale_color_viridis_d(name = "Type of Starting Values") +
