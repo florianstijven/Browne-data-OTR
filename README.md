@@ -123,3 +123,11 @@ While the Rmarkdown files produce independent reports in html and word format, t
 that saves the figures presented in the paper into the `figures-manuscript/`
 directory.
 
+# Simulated Data
+
+Because the original data cannot be shared, we simulated a data set that is
+similar to the original data. The code to simulate these data is present in the
+`Multiple Imputation/Simulated Data Set/` directory. This directory contains a
+separate README file explaining the structure fo the simulated data and how
+these data were simulated.
+
