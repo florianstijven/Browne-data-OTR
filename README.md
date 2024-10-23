@@ -119,7 +119,7 @@ have also been included under the same name.
 The `OTR analyses/figure-main-results.R` script contains the code to produce Figure 3 and 
 Web Figure 2. This script uses the `OTR analyses/pooled_inference_aggregated_rules_tbl.rds` and
 `OTR analyses/pooled_inference_aggregated_rules_tbl_artificial.rds` data files to generate the figures. 
-These latter two data files---which contain inferential results for the aggregated regimes---are produced 
+These latter two data files (which contain inferential results for the aggregated regimes) are produced 
 by `OTR analyses/final-summary.Rmd` and `OTR analyses/artifical-data-summary.Rmd`, respectively.
 
 While the Rmarkdown files produce independent reports in html and word format, they also contain code
