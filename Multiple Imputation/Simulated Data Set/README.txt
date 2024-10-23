@@ -1,10 +1,12 @@
-The simulated data sets are structured like the original data. They were simulated by making a new data set
-containing only the id, group, and sex variables from the original data (keeping all rows from the original 
-data). The orignal and new data sets were then concatenated and compatible imputation (described elsewhere)
-was performed on the "joined" data set. Next, the rows from the original data were deleted. The thus generated
-data set correspond to simulated_full_data.csv etc. Next, for each row in simulated_full_data.csv, we made
-all observations missing that were missing in the correponding row (based on id) in the original data. The thus
-generated data sets correspond to simulated_missing_data.csv etc. 
+The simulated data set is structured like the original data. These data were simulated by first making a new data set
+containing only the id, group (i.e., treatment), and sex variables from the original data (keeping all rows from the original 
+data). The orignal and new data set were then concatenated and compatible imputation (described elsewhere)
+was performed once on the "combined" data set. Next, the rows in the singly imputed data set that correspond to the original data
+were deleted. This leaves us with a data set where all variables were imputed except id, group, and sex. The thus generated
+data set corresponds to simulated_full_data.csv (and identically named files with different file extensions). Next, for each 
+row in simulated_full_data.csv, we made all observations missing that were missing in the correponding row (matched on id) 
+in the original data. The thus generated data set corresponds to simulated_missing_data.csv (and identically named files 
+with different file extensions). 
 
 The simulated data sets are available in .csv, .sav, and .rds format. The continuous variables are 
 described below:
