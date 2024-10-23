@@ -6,3 +6,5 @@
 *_files
 README.html
 !Multiple Imputation/Simulated Data Set/simulated_*_data.rds
+!OTR analyses/pooled_inference_aggregated_rules_tbl_artificial.rds
+!OTR analyses/pooled_inference_aggregated_rules_tbl.rds
