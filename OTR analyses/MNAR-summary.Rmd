@@ -642,7 +642,7 @@ pooled_inference_aggregated_rules_tbl %>%
     ),
     position = position_dodge(1.5),
   ) +
-  ylab(latex2exp::TeX("Pooled Estimated Value, $\\bar{\\nu}(\\tilde{d})")) +
+  ylab(latex2exp::TeX("Pooled Estimated Value, $\\bar{\\hat{\\nu}}(\\tilde{d})")) +
   xlab(latex2exp::TeX("$\\bar{\\Delta}_{MNAR}$")) +
   scale_color_viridis_d(
     name = "OTR method",
